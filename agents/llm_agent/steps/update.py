@@ -1,4 +1,5 @@
 """STEP 4: UPDATE — summary + world_model 갱신."""
+from __future__ import annotations
 
 from typing import TYPE_CHECKING
 

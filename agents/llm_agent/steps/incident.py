@@ -1,4 +1,5 @@
 """STEP 2a: INCIDENT — game_over/level_complete 분석."""
+from __future__ import annotations
 
 from typing import TYPE_CHECKING
 

@@ -1,4 +1,5 @@
 """STEP 3: EVALUATE — 결과 평가."""
+from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
