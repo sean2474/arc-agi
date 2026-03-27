@@ -2,17 +2,21 @@
 
 사용법:
     python run_agent.py
-    python run_agent.py --config configs/default.yaml
-    python run_agent.py --game ls20 --max-steps 100
+    python run_agent.py --game ls20
+    python run_agent.py -c configs/default.yaml
 """
 
 import sys
 import json
 import argparse
+import subprocess
+import time
+import atexit
 from pathlib import Path
 from datetime import datetime
 
 import yaml
+import requests
 from dotenv import load_dotenv
 
 import arc_agi
@@ -22,6 +26,59 @@ from agents.llm_agent import LLMAgent, StepRecord
 
 
 load_dotenv()
+
+_server_proc = None
+
+
+def start_model_server(server_cfg: dict) -> None:
+    """vLLM 서버가 안 돼있으면 자동 시작."""
+    global _server_proc
+    port = server_cfg.get("port", 8080)
+    api_url = f"http://localhost:{port}/v1/models"
+
+    # 이미 돌고 있는지 체크
+    try:
+        r = requests.get(api_url, timeout=3)
+        if r.status_code == 200:
+            print(f"✅ 모델 서버 이미 실행 중 (port {port})")
+            return
+    except Exception:
+        pass
+
+    model_path = server_cfg.get("model_path", "./qwen3-8b")
+    extra_args = server_cfg.get("extra_args", "")
+
+    cmd = f"vllm serve {model_path} --port {port} {extra_args}"
+    print(f"🚀 모델 서버 시작: {cmd}")
+    _server_proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    atexit.register(_stop_server)
+
+    # 서버 준비 대기
+    print("   서버 로딩 대기 중...", end="", flush=True)
+    for i in range(120):  # 최대 2분
+        time.sleep(2)
+        try:
+            r = requests.get(api_url, timeout=3)
+            if r.status_code == 200:
+                print(f" 준비 완료! ({(i+1)*2}초)")
+                return
+        except Exception:
+            pass
+        if i % 10 == 9:
+            print(".", end="", flush=True)
+
+    print(" ❌ 타임아웃 (2분)")
+    _stop_server()
+    sys.exit(1)
+
+
+def _stop_server():
+    global _server_proc
+    if _server_proc and _server_proc.poll() is None:
+        print("🛑 모델 서버 종료")
+        _server_proc.terminate()
+        _server_proc.wait(timeout=10)
+        _server_proc = None
 
 
 def load_config(config_path: str) -> dict:
@@ -164,6 +221,11 @@ def main():
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+
+    # 모델 서버 자동 시작
+    if "server" in cfg:
+        start_model_server(cfg["server"])
+
     agent_cfg = cfg["agent"]
     game_cfg = cfg["game"]
     output_cfg = cfg["output"]
