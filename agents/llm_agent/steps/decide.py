@@ -30,7 +30,7 @@ def do_decide(agent, observe_result: dict) -> tuple[GameAction, str, str | None,
         return action, name, None, "random (parse failed)"
 
     raw_action = parsed.get("action", "up")
-    result = action_to_gameaction(raw_action, agent.available_values)
+    result = action_to_gameaction(raw_action, agent.available_values, world_model=agent.world_model)
     if result is None:
         result = (GameAction.ACTION1, "up")
     action, action_name = result

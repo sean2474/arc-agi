@@ -30,18 +30,7 @@ class LLMAgent:
 
         # 상태
         self.summary: dict = {}
-        self.world_model: dict = {
-            "phase": "static_observation",
-            "game_type": {"hypothesis": "unknown", "confidence": 0.0},
-            "actions": {},
-            "controllable": {"description": None, "confidence": 0.0},
-            "goal": {"description": None, "confidence": 0.0},
-            "objects": {},
-            "dangers": [],
-            "interactions": [],
-            "immediate_plan": "analyze first frame to identify all objects",
-            "strategic_plan": "identify all distinguishable objects on screen",
-        }
+        self.world_model: dict = self._init_world_model()
         self.success_condition: str = ""
         self.failure_condition: str = ""
         self.prev_grid: list[str] | None = None
@@ -58,13 +47,53 @@ class LLMAgent:
         self.total_input_tokens: int = 0
         self.total_output_tokens: int = 0
 
+    @staticmethod
+    def _init_world_model() -> dict:
+        return {
+            "phase": "static_observation",
+            "game_type": {"hypothesis": "unknown", "confidence": 0.0},
+            "actions": {},
+            "controllable": {"description": None, "confidence": 0.0},
+            "goal": {"description": None, "confidence": 0.0},
+            "objects": {},
+            "dangers": [],
+            "interactions": [],
+            "immediate_plan": {"description": "analyze first frame to identify all objects", "confidence": 0.5},
+            "strategic_plan": {"description": "identify all distinguishable objects on screen", "confidence": 0.5},
+        }
+
     def setup(self, game_info: dict):
         self.game_info = game_info
         self.available_values = {a["value"] for a in game_info["available_actions"]}
-        self.world_model["actions"] = {
-            ACTION_NUM_TO_NAME.get(a["value"], f"action{a['value']}"): {"effect": "unknown", "confidence": 0.0}
-            for a in game_info["available_actions"]
+        actions = {}
+        for a in game_info["available_actions"]:
+            name = ACTION_NUM_TO_NAME.get(a["value"], f"action{a['value']}")
+            entry = {"effect": "unknown", "confidence": 0.0}
+            if name == "click":
+                entry["target"] = None
+            actions[name] = entry
+        self.world_model["actions"] = actions
+
+    def reset_for_new_level(self):
+        """레벨 클리어 후 호출. phase 리셋, 지식은 carry-over."""
+        prev_goal = self.world_model.get("goal", {}).get("description", "unknown")
+
+        self.world_model["phase"] = "static_observation"
+
+        # objects: position만 리셋, type/속성은 유지
+        for obj in self.world_model.get("objects", {}).values():
+            obj["position"] = "unknown (new level)"
+            obj["interaction_tested"] = False
+
+        # interactions, dangers는 유지 (전 레벨 지식 carry-over)
+        # actions는 유지 (LLM이 OBSERVE에서 조절)
+
+        self.world_model["immediate_plan"] = {"description": "observe new level", "confidence": 0.5}
+        self.world_model["strategic_plan"] = {
+            "description": f"previous level cleared by: {prev_goal}. re-observe and apply similar strategy.",
+            "confidence": 0.4,
         }
+        self.prev_grid = None
 
     # ── LLM 호출 래퍼 ──
 
@@ -105,8 +134,20 @@ class LLMAgent:
 
     # ── 메인 인터페이스 ──
 
+    def _merge_observe_objects(self, observe_result: dict):
+        """OBSERVE 결과의 objects를 world_model에 merge."""
+        obs_objects = observe_result.get("objects", {})
+        if obs_objects and isinstance(obs_objects, dict):
+            for k, v in obs_objects.items():
+                if k in self.world_model["objects"]:
+                    self.world_model["objects"][k].update(v)
+                else:
+                    self.world_model["objects"][k] = v
+            self.world_model["phase"] = get_current_phase(self.world_model)
+        return obs_objects
+
     def get_next_action(self, step: int, obs) -> tuple[GameAction, StepRecord]:
-        """매 스텝: OBSERVE → DECIDE(1액션) 반환."""
+        """매 스텝 호출. Phase에 따라 다른 사이클."""
         curr_grid = frame_to_compact(obs.frame[-1])
         curr_state = obs.state
         curr_levels = obs.levels_completed
@@ -124,14 +165,15 @@ class LLMAgent:
                 print(f"  [INCIDENT] {label}")
                 incident_result = do_incident(self, curr_grid, is_game_over, is_level_complete, self.prev_levels, curr_levels)
 
+            if is_level_complete:
+                self.reset_for_new_level()
+
             print(f"  [EVALUATE]")
             report, discoveries = do_evaluate(self, curr_grid, incident_result)
             self.reports.append(report)
 
             print(f"  [UPDATE]")
             do_update(self, {"report": report, "goal_achieved": report.get("goal_achieved", False)}, discoveries, incident_result)
-
-            # phase 갱신
             self.world_model["phase"] = get_current_phase(self.world_model)
 
         phase = self.world_model.get("phase", "static_observation")
@@ -140,24 +182,30 @@ class LLMAgent:
         # OBSERVE
         print(f"  [OBSERVE]")
         observe_result = do_observe(self, step, curr_grid, curr_levels)
+        obs_objects = self._merge_observe_objects(observe_result)
 
-        # OBSERVE 결과에서 objects를 world_model에 merge
-        obs_objects = observe_result.get("objects", {})
-        if obs_objects and isinstance(obs_objects, dict):
-            for k, v in obs_objects.items():
-                if k in self.world_model["objects"]:
-                    self.world_model["objects"][k].update(v)
-                else:
-                    self.world_model["objects"][k] = v
-            # phase 재계산 (objects가 추가됐을 수 있으므로)
-            self.world_model["phase"] = get_current_phase(self.world_model)
+        # Phase 1: OBSERVE만 하고 끝 (DECIDE/EXECUTE 없음)
+        if phase == "static_observation":
+            hypothesis = f"objects: {list(obs_objects.keys())}" if obs_objects else "no objects detected"
+            challenge = ", ".join(observe_result.get("contradictions", []))
+            record = StepRecord(
+                step=step, action="observe_only", state=curr_state.value,
+                levels_completed=curr_levels, grid=curr_grid,
+                observation=str(observe_result.get("changes", "")),
+                hypothesis=hypothesis, challenge=challenge,
+                goal="static observation — no action taken",
+                llm_phase="observe",
+            )
+            self.prev_grid = curr_grid
+            self.prev_levels = curr_levels
+            self.history.append(record)
+            # phase가 이미 action_discovery로 전환됐을 것
+            return GameAction.RESET, record  # no-op action
 
-        # DECIDE (1개 액션)
+        # Phase 2~4: DECIDE(1액션) → EXECUTE
         print(f"  [DECIDE]")
         action, action_name, reasoning, goal = do_decide(self, observe_result)
 
-        # observe 결과에서 hypothesis/challenge 추출
-        changes = observe_result.get("changes", "")
         hypothesis = f"objects: {list(obs_objects.keys())}" if obs_objects else "no objects detected"
         challenge = ", ".join(observe_result.get("contradictions", []))
 
