@@ -155,18 +155,17 @@ def run_game(game_id: str, agent: LLMAgent, max_steps: int, data_dir: str, save_
         action, record = agent.get_next_action(step, obs)
 
         # 로그
-        phase_mark = {"observe+decide": "👁️🧠", "evaluate": "📊", "update": "📝"}.get(record.llm_phase or "", "  ")
-        trigger_info = f" [{record.trigger}]" if record.trigger else ""
-        print(f"  {phase_mark} step {step:3d} | {record.action:<20s} | state={record.state} lvl={record.levels_completed}{trigger_info}")
+        phase = agent.world_model.get("phase", "")
+        print(f"  [{phase}] step {step:3d} | {record.action:<20s} | state={record.state} lvl={record.levels_completed}")
 
-        if record.llm_phase == "observe+decide" and record.reasoning:
+        if record.reasoning:
             if record.observation:
                 print(f"           💬 {str(record.observation)[:100]}")
             if record.hypothesis:
                 print(f"           💡 {record.hypothesis[:120]}")
             if record.challenge:
                 print(f"           ⚡ {record.challenge[:120]}")
-            print(f"           🎯 {record.sequence_goal}")
+            print(f"           🎯 {record.goal}")
         if record.report:
             achieved = "✅" if record.report.get("goal_achieved") else "❌"
             print(f"           {achieved} {record.report.get('reasoning', '')[:80]}")
