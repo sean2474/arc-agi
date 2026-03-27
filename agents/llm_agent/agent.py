@@ -114,23 +114,16 @@ class LLMAgent:
 
     def __init__(
         self,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "qwen3-8b",
         max_tokens: int = 1024,
-        name: str = "claude_v0",
-        backend: str = "anthropic",       # "anthropic" or "openai"
-        api_base: str = "http://localhost:8080/v1",  # OpenAI-compatible endpoint
+        name: str = "qwen3_v0",
+        api_base: str = "http://localhost:8080/v1",
     ):
+        import openai
+        self.client = openai.OpenAI(base_url=api_base, api_key="local")
         self.model = model
         self.max_tokens = max_tokens
         self.name = name
-        self.backend = backend
-
-        if backend == "anthropic":
-            import anthropic
-            self.client = anthropic.Anthropic()
-        else:
-            import openai
-            self.client = openai.OpenAI(base_url=api_base, api_key="local")
 
         # 상태
         self.summary: dict = {}
@@ -188,33 +181,20 @@ class LLMAgent:
         import time
         for attempt in range(retries):
             try:
-                if self.backend == "anthropic":
-                    response = self.client.messages.create(
-                        model=self.model,
-                        max_tokens=self.max_tokens,
-                        system=SYSTEM_PROMPT,
-                        messages=[{"role": "user", "content": user_msg}],
-                    )
-                    self.llm_call_count += 1
-                    self.total_input_tokens += response.usage.input_tokens
-                    self.total_output_tokens += response.usage.output_tokens
-                    raw_text = response.content[0].text
-                else:
-                    # OpenAI-compatible (로컬 모델)
-                    response = self.client.chat.completions.create(
-                        model=self.model,
-                        max_tokens=self.max_tokens,
-                        messages=[
-                            {"role": "system", "content": SYSTEM_PROMPT},
-                            {"role": "user", "content": user_msg},
-                        ],
-                    )
-                    self.llm_call_count += 1
-                    usage = response.usage
-                    if usage:
-                        self.total_input_tokens += usage.prompt_tokens or 0
-                        self.total_output_tokens += usage.completion_tokens or 0
-                    raw_text = response.choices[0].message.content
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    max_tokens=self.max_tokens,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": user_msg},
+                    ],
+                )
+                self.llm_call_count += 1
+                usage = response.usage
+                if usage:
+                    self.total_input_tokens += usage.prompt_tokens or 0
+                    self.total_output_tokens += usage.completion_tokens or 0
+                raw_text = response.choices[0].message.content
 
                 parsed = parse_llm_response(raw_text)
                 if parsed is None:

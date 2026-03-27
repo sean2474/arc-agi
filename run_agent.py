@@ -159,30 +159,16 @@ def run_game(game_id: str, agent: LLMAgent, max_steps: int, data_dir: str, save_
 
 def main():
     parser = argparse.ArgumentParser(description="ARC-AGI-3 에이전트 실행기")
+    parser.add_argument("--game", help="게임 ID (config의 game.ids 오버라이드)")
     parser.add_argument("-c", "--config", default="configs/default.yaml", help="설정 파일")
-    parser.add_argument("--game", help="게임 ID (config 오버라이드)")
-    parser.add_argument("--max-steps", type=int, help="최대 스텝 (config 오버라이드)")
-    parser.add_argument("--model", help="모델 (config 오버라이드)")
-    parser.add_argument("--name", help="에이전트 이름 (config 오버라이드)")
-    parser.add_argument("--stop-level", type=int, default=0, help="N레벨 클리어 후 종료 (0=전체)")
-    parser.add_argument("--backend", help="anthropic 또는 openai (config 오버라이드)")
-    parser.add_argument("--api-base", help="OpenAI-compatible endpoint URL")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
-
-    # CLI 오버라이드
     agent_cfg = cfg["agent"]
     game_cfg = cfg["game"]
     output_cfg = cfg["output"]
 
-    model = args.model or agent_cfg["model"]
-    agent_name = args.name or agent_cfg["name"]
-    max_steps = args.max_steps or game_cfg["max_steps"]
-    backend = args.backend or agent_cfg.get("backend", "anthropic")
-    api_base = args.api_base or agent_cfg.get("api_base", "http://localhost:8080/v1")
     game_ids = [args.game] if args.game else game_cfg["ids"]
-
     if not game_ids:
         arc_client = arc_agi.Arcade()
         games = arc_client.get_environments()
@@ -190,21 +176,20 @@ def main():
         print(f"🎮 전체 게임 {len(game_ids)}개 실행")
 
     agent = LLMAgent(
-        model=model,
+        model=agent_cfg["model"],
         max_tokens=agent_cfg.get("max_tokens", 1024),
-        name=agent_name,
-        backend=backend,
-        api_base=api_base,
+        name=agent_cfg["name"],
+        api_base=agent_cfg.get("api_base", "http://localhost:8080/v1"),
     )
 
     for gid in game_ids:
         run_game(
             game_id=gid,
             agent=agent,
-            max_steps=max_steps,
+            max_steps=game_cfg["max_steps"],
             data_dir=output_cfg["data_dir"],
             save_every=output_cfg.get("save_every", 0),
-            stop_after_level=args.stop_level,
+            stop_after_level=game_cfg.get("stop_level", 0),
         )
 
 
