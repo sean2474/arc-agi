@@ -49,25 +49,25 @@ def start_model_server(server_cfg: dict) -> None:
     extra_args = server_cfg.get("extra_args", "")
 
     cmd = f"vllm serve {model_path} --port {port} {extra_args}"
-    print(f"🚀 모델 서버 시작: {cmd}")
+    print(f"start model server: {cmd}")
     _server_proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     atexit.register(_stop_server)
 
     # 서버 준비 대기
-    print("   서버 로딩 대기 중...", end="", flush=True)
+    print("  model server loading...", end="", flush=True)
     for i in range(120):  # 최대 2분
         time.sleep(2)
         try:
             r = requests.get(api_url, timeout=3)
             if r.status_code == 200:
-                print(f" 준비 완료! ({(i+1)*2}초)")
+                print(f" model loading complete ({(i+1)*2}초)")
                 return
         except Exception:
             pass
         if i % 10 == 9:
             print(".", end="", flush=True)
 
-    print(" ❌ 타임아웃 (2분)")
+    print(" model loading timeout (2min)")
     _stop_server()
     sys.exit(1)
 
@@ -75,7 +75,7 @@ def start_model_server(server_cfg: dict) -> None:
 def _stop_server():
     global _server_proc
     if _server_proc and _server_proc.poll() is None:
-        print("🛑 모델 서버 종료")
+        print("  model server stopping...")
         _server_proc.terminate()
         _server_proc.wait(timeout=10)
         _server_proc = None
@@ -180,7 +180,6 @@ def run_game(game_id: str, agent: LLMAgent, max_steps: int, data_dir: str, save_
             obs = env.step(GameAction.RESET)
             agent.prev_grid = None
             agent.prev_levels = obs.levels_completed
-            agent.sequence = []
 
         # 레벨 클리어 체크
         if stop_after_level > 0 and obs.levels_completed >= stop_after_level:
@@ -239,7 +238,7 @@ def main():
 
     agent = LLMAgent(
         model=agent_cfg["model"],
-        max_tokens=agent_cfg.get("max_tokens", 1024),
+        max_tokens=agent_cfg.get("max_tokens", None),
         name=agent_cfg["name"],
         api_base=agent_cfg.get("api_base", "http://localhost:8080/v1"),
     )

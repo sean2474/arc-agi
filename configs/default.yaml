@@ -8,7 +8,7 @@ server:
 agent:
   name: "qwen3_v0"                    # 저장 디렉토리 이름
   model: "qwen3-8b"                   # 모델 이름 (--served-model-name과 일치)
-  max_tokens: 1024                    # LLM 응답 최대 토큰
+  # max_tokens: 무제한 (think 모드에서 충분한 토큰 필요)
   api_base: "http://localhost:8080/v1"  # OpenAI-compatible endpoint
 
 game:

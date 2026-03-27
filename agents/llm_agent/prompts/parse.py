@@ -3,7 +3,19 @@ import re
 
 
 def parse_llm_response(text: str) -> dict | None:
-    """LLM 응답에서 JSON 추출. 여러 전략으로 시도."""
+    """LLM 응답에서 JSON 추출. <think> 태그, 코드블록 등 처리."""
+    if not text:
+        return None
+
+    # 0. <think>...</think> 태그 제거 (Qwen3 등 thinking 모델)
+    think_end = text.find("</think>")
+    if think_end != -1:
+        text = text[think_end + len("</think>"):]
+    elif text.strip().startswith("<think>"):
+        # </think>가 없으면 thinking에서 토큰 소진 → JSON 없음
+        return None
+
+    text = text.strip()
     if not text:
         return None
 

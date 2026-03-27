@@ -1,5 +1,49 @@
 """ARC-AGI-3 에이전트 상수 정의."""
 
+# ── Phase System ──
+
+def get_current_phase(world_model: dict) -> str:
+    """world_model 상태를 보고 현재 phase 반환."""
+    objects = world_model.get("objects", {})
+    actions = world_model.get("actions", {})
+
+    if not objects:
+        return "static_observation"
+
+    action_avg = sum(a.get("confidence", 0) for a in actions.values()) / max(len(actions), 1)
+    if action_avg < 0.7:
+        return "action_discovery"
+
+    untested = [k for k, v in objects.items()
+                if v.get("type") in ("unknown", "static") and not v.get("interaction_tested")]
+    if untested:
+        return "interaction_discovery"
+
+    return "goal_execution"
+
+
+def get_phase_hint(world_model: dict) -> str:
+    """현재 phase에 맞는 DECIDE 힌트 생성."""
+    phase = get_current_phase(world_model)
+
+    if phase == "static_observation":
+        return "Phase: STATIC_OBSERVATION. First frame — identify all objects on screen."
+
+    if phase == "action_discovery":
+        untested = [k for k, v in world_model.get("actions", {}).items() if v.get("confidence", 0) == 0.0]
+        if untested:
+            return f"Phase: ACTION_DISCOVERY. Untested actions: {untested}. Test one."
+        low = [k for k, v in world_model.get("actions", {}).items() if v.get("confidence", 0) < 0.7]
+        return f"Phase: ACTION_DISCOVERY. Low confidence actions: {low}. Verify one."
+
+    if phase == "interaction_discovery":
+        candidates = [k for k, v in world_model.get("objects", {}).items()
+                      if v.get("type") in ("unknown", "static") and not v.get("interaction_tested")]
+        return f"Phase: INTERACTION_DISCOVERY. Untested objects: {candidates}. Approach one."
+
+    goal = world_model.get("goal", {})
+    return f"Phase: GOAL_EXECUTION. Goal: {goal.get('description', 'unknown')}. Execute strategy."
+
 # ── 액션 매핑 ──
 ACTION_LABELS = {
     1: "UP",
@@ -19,10 +63,6 @@ ACTION_NUM_TO_NAME = {
 ACTION_NAME_TO_NUM = {v: k for k, v in ACTION_NUM_TO_NAME.items()}
 
 ACTION_PROMPT_LINE = "  ".join(f"{k}: {v}" for k, v in ACTION_LABELS.items())
-
-
-# DECIDE는 항상 1개 액션만 반환
-
 
 # ── ARC 16색 팔레트 ──
 ARC_COLOR_NAMES = {
