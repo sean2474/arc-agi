@@ -4,7 +4,7 @@
 
 ```
 Phase 1 (첫 프레임):
-  SCAN → UPDATE → phase 전환
+  SCAN → HYPOTHESIZE → UPDATE → phase 전환
 
 Phase 2~4 (매 스텝):
   DECIDE → EXECUTE → OBSERVE → EVALUATE → UPDATE
@@ -30,6 +30,25 @@ Phase 2~4 (매 스텝):
   - 뭐가 뭔지 추측 금지 (전부 type: "unknown")
   - DIFF/CLASSIFY/CHALLENGE 없음 (비교할 프레임이 없으므로)
 - 출력: objects 딕셔너리 + patterns
+
+---
+
+## HYPOTHESIZE (Phase 1, SCAN 직후)
+
+"이것들이 뭘 의미할까?" — SCAN 결과를 보고 초기 가설 수립.
+
+- 입력: SCAN 결과 (objects + patterns) + available_actions
+- 목적: 각 오브젝트의 역할 추측 + 게임 타입 추측 + win condition 초기 가설
+- 하는 일:
+  - 각 오브젝트에 대해 type_hypothesis 추측 (배경? 벽? 조작 가능? 목표? 위험?)
+  - 게임 타입 추측 (네비게이션? 퍼즐? 클릭 기반? 패턴 매칭?)
+  - win condition 초기 가설 (뭘 해야 이길 수 있을지)
+  - 어떤 액션을 먼저 테스트해야 하는지 우선순위 제안
+  - 전부 confidence 낮음 (0.3) — 검증 전이므로
+- 하지 않는 일:
+  - 액션 결정 (DECIDE의 역할)
+  - 확정적 판단 — 전부 가설일 뿐
+- 출력: type_hypothesis 업데이트 + game_type 가설 + goal 가설 + 탐색 우선순위
 
 ---
 

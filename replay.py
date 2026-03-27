@@ -70,7 +70,7 @@ HTML = """<!DOCTYPE html>
 </head>
 <body>
   <div id="sidebar">
-    <h1>🔁 {{ title }} — {{ agent_name }}</h1>
+    <h1> {{ title }} — {{ agent_name }}</h1>
     <div id="controls">
       <button class="btn" id="btn-prev" onclick="go(-1)">◀</button>
       <div id="step-display">0 / {{ total }}</div>
@@ -106,12 +106,39 @@ let currentIdx = 0;
 let playing = false;
 let playInterval = null;
 
-function drawGrid(grid) {
+function drawGrid(grid, worldModel) {
   for (let y = 0; y < 64; y++) {
     const row = grid[y];
     for (let x = 0; x < 64; x++) {
       ctx.fillStyle = COLORS[parseInt(row[x], 16)] || '#000';
       ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
+    }
+  }
+  // draw object bbox outlines
+  if (worldModel && worldModel.objects) {
+    ctx.font = '9px Arial';
+    const typeColors = {
+      'unknown': '#ffffff80', 'static': '#888888', 'dynamic': '#00ff00',
+      'controllable': '#00ffff', 'dangerous': '#ff0000', 'goal': '#ffff00',
+      'background': '#444444', 'non-interactive': '#666666',
+    };
+    for (const [id, obj] of Object.entries(worldModel.objects)) {
+      const b = obj.bbox;
+      if (!b) continue;
+      const x = (b.col_min || 0) * CELL;
+      const y = (b.row_min || 0) * CELL;
+      const w = ((b.col_max || 0) - (b.col_min || 0) + 1) * CELL;
+      const h = ((b.row_max || 0) - (b.row_min || 0) + 1) * CELL;
+      const color = typeColors[obj.type_hypothesis] || '#ffffff80';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x, y, w, h);
+      ctx.fillStyle = '#000000aa';
+      const label = `${id}`;
+      const tw = ctx.measureText(label).width + 4;
+      ctx.fillRect(x, y - 11, tw, 11);
+      ctx.fillStyle = color;
+      ctx.fillText(label, x + 2, y - 2);
     }
   }
 }
@@ -122,7 +149,7 @@ function showStep(idx) {
   if (idx < 0 || idx >= trajectory.length) return;
   currentIdx = idx;
   const s = trajectory[idx];
-  drawGrid(s.grid);
+  drawGrid(s.grid, s.world_model);
 
   document.getElementById('step-display').textContent = `${s.step} / ${trajectory.length}`;
   document.getElementById('slider').value = idx;
@@ -165,6 +192,34 @@ function showStep(idx) {
     }
     html += `</div>`;
   }
+  // world model
+  if (s.world_model) {
+    html += `<div class="info-section"><div class="info-label">World Model</div>`;
+    const wm = s.world_model;
+    html += `<div class="info-content" style="font-size:12px;">`;
+    html += `phase: ${esc(wm.phase || '?')}\n`;
+    if (wm.objects && Object.keys(wm.objects).length) {
+      html += `objects: ${Object.keys(wm.objects).join(', ')}\n`;
+    }
+    if (wm.controllable && wm.controllable.description) {
+      html += `controllable: ${esc(wm.controllable.description)} (${wm.controllable.confidence})\n`;
+    }
+    if (wm.goal && wm.goal.description) {
+      html += `goal: ${esc(wm.goal.description)} (${wm.goal.confidence})\n`;
+    }
+    if (wm.dangers && wm.dangers.length) {
+      html += `dangers: ${wm.dangers.length}\n`;
+    }
+    if (wm.interactions && wm.interactions.length) {
+      html += `interactions: ${wm.interactions.length}\n`;
+    }
+    if (wm.immediate_plan) {
+      html += `plan: ${esc(typeof wm.immediate_plan === 'object' ? wm.immediate_plan.description : wm.immediate_plan)}\n`;
+    }
+    html += `</div>`;
+    html += `<button class="btn" onclick="showWorldModel(${idx})" style="font-size:11px;margin-top:4px;">Full World Model</button>`;
+    html += `</div>`;
+  }
   // prompt button
   if (s.prompts) {
     html += `<div class="info-section"><button class="btn" onclick="showPrompts(${idx})" style="font-size:11px;">View Prompts</button></div>`;
@@ -189,18 +244,49 @@ function showPrompts(idx) {
   const tabsEl = document.getElementById('prompt-tabs');
   const contentEl = document.getElementById('prompt-content');
   tabsEl.innerHTML = '';
+
+  function showTab(label, text) {
+    tabsEl.querySelectorAll('.prompt-tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    contentEl.textContent = text;
+  }
+
   keys.forEach((k, i) => {
-    const tab = document.createElement('span');
-    tab.className = 'prompt-tab' + (i === 0 ? ' active' : '');
-    tab.textContent = k;
-    tab.onclick = () => {
+    // prompt tab
+    const pTab = document.createElement('span');
+    pTab.className = 'prompt-tab' + (i === 0 ? ' active' : '');
+    pTab.textContent = k + ' (prompt)';
+    pTab.onclick = () => {
       tabsEl.querySelectorAll('.prompt-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
+      pTab.classList.add('active');
       contentEl.textContent = s.prompts[k];
     };
-    tabsEl.appendChild(tab);
+    tabsEl.appendChild(pTab);
+
+    // response tab
+    if (s.responses && s.responses[k]) {
+      const rTab = document.createElement('span');
+      rTab.className = 'prompt-tab';
+      rTab.textContent = k + ' (response)';
+      rTab.onclick = () => {
+        tabsEl.querySelectorAll('.prompt-tab').forEach(t => t.classList.remove('active'));
+        rTab.classList.add('active');
+        contentEl.textContent = s.responses[k];
+      };
+      tabsEl.appendChild(rTab);
+    }
   });
+
   contentEl.textContent = s.prompts[keys[0]];
+  document.getElementById('prompt-overlay').classList.add('show');
+}
+function showWorldModel(idx) {
+  const s = trajectory[idx];
+  if (!s.world_model) return;
+  const tabsEl = document.getElementById('prompt-tabs');
+  const contentEl = document.getElementById('prompt-content');
+  tabsEl.innerHTML = '<span class="prompt-tab active">world_model</span>';
+  contentEl.textContent = JSON.stringify(s.world_model, null, 2);
   document.getElementById('prompt-overlay').classList.add('show');
 }
 function closePrompt() { document.getElementById('prompt-overlay').classList.remove('show'); }
@@ -286,7 +372,7 @@ def main():
     args = parser.parse_args()
 
     run_path = find_latest_run(Path(args.path))
-    print(f"📂 로드: {run_path}")
+    print(f"Loading {run_path}")
 
     with open(run_path) as f:
         run_data = json.load(f)
@@ -294,7 +380,7 @@ def main():
     title = run_data.get("title", "?")
     agent_name = run_data.get("agent_name", "?")
     total = len(run_data["trajectory"])
-    print(f"🎮 {title} — {agent_name} ({total} steps)")
+    print(f"{title} — {agent_name} ({total} steps)")
 
     app = Flask(__name__)
 
@@ -312,7 +398,7 @@ def main():
     def data():
         return jsonify(run_data)
 
-    print(f"\n🌐 http://localhost:{args.port}")
+    print(f"\n http://localhost:{args.port}")
     app.run(host="0.0.0.0", port=args.port, debug=False)
 
 

@@ -50,7 +50,7 @@ Respond in JSON:
 }}
 
 Rules:
-- action: ONE action name. [{actions_names}]. Click: ["click", x, y].
+- action: ONE action name. [{actions_names}]. Click: ["click", "object_id"].
 - goal: MUST be specific and verifiable. The system needs to check success/failure.
   BAD: "explore the area"  GOOD: "test what happens when action X is taken"
 - Prioritize testing actions with LOW confidence in the WORLD MODEL.

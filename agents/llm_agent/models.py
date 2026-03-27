@@ -18,6 +18,8 @@ class StepRecord:
     llm_phase: str | None = None
     report: dict | None = None
     prompts: dict | None = None
+    responses: dict | None = None
+    world_model: dict | None = None
 
     def to_dict(self) -> dict:
         d = {
@@ -37,4 +39,8 @@ class StepRecord:
             d["report"] = self.report
         if self.prompts:
             d["prompts"] = self.prompts
+        if self.responses:
+            d["responses"] = self.responses
+        if self.world_model:
+            d["world_model"] = self.world_model
         return d

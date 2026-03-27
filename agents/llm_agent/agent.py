@@ -13,7 +13,7 @@ from .grid_utils import frame_to_compact
 from .models import StepRecord
 from .world_model import WorldModel
 from .prompts import SYSTEM_PROMPT, parse_llm_response
-from .steps import do_scan, do_observe, do_decide, do_incident, do_evaluate, do_update
+from .steps import do_scan, do_hypothesize, do_observe, do_decide, do_incident, do_evaluate, do_update
 
 
 def timed(fn):
@@ -60,6 +60,7 @@ class LLMAgent:
         self.total_input_tokens: int = 0
         self.total_output_tokens: int = 0
         self._step_prompts: dict = {}
+        self._step_responses: dict = {}
 
     def setup(self, game_info: dict):
         self.game_info = game_info
@@ -90,6 +91,9 @@ class LLMAgent:
                     self.total_output_tokens += usage.completion_tokens or 0
                 raw_text = response.choices[0].message.content
 
+                if label:
+                    self._step_responses[label] = raw_text
+
                 parsed = parse_llm_response(raw_text)
                 if parsed is None:
                     print(f"  [PARSE_FAIL] raw (first 500):")
@@ -112,10 +116,11 @@ class LLMAgent:
         curr_state = obs.state
         curr_levels = obs.levels_completed
         self._step_prompts = {}
+        self._step_responses = {}
 
         phase = self.world_model.phase
 
-        # ── Phase 1: SCAN → UPDATE ──
+        # ── Phase 1: SCAN → HYPOTHESIZE → UPDATE ──
         if phase == "static_observation":
             print(f"  [{phase}]")
             print(f"  [SCAN]")
@@ -125,18 +130,41 @@ class LLMAgent:
             scan_objects = scan_result.get("objects", {})
             if scan_objects and isinstance(scan_objects, dict):
                 self.world_model.merge_objects(scan_objects)
-                self.world_model.update_phase()
+
+            # HYPOTHESIZE
+            print(f"  [HYPOTHESIZE]")
+            hyp_result = do_hypothesize(self, scan_result)
+
+            # apply hypotheses to world model
+            obj_hyps = hyp_result.get("object_hypotheses", {})
+            for obj_id, hyp in obj_hyps.items():
+                if obj_id in self.world_model.get_objects():
+                    self.world_model.update_object(obj_id, type_hypothesis=hyp.get("type_hypothesis", "unknown"))
+
+            game_type = hyp_result.get("game_type", {})
+            if game_type:
+                self.world_model.set_game_type(game_type.get("hypothesis", "unknown"), game_type.get("confidence", 0.3))
+
+            goal_hyp = hyp_result.get("goal_hypothesis", {})
+            if goal_hyp:
+                self.world_model.set_goal(goal_hyp.get("description", "unknown"), goal_hyp.get("confidence", 0.3))
+
+            self.world_model.update_phase()
 
             hypothesis = f"objects: {list(scan_objects.keys())}" if scan_objects else "no objects detected"
+            reasoning = hyp_result.get("reasoning", "")
 
             record = StepRecord(
                 step=step, action="scan_only", state=curr_state.value,
                 levels_completed=curr_levels, grid=curr_grid,
                 observation=str(scan_result.get("patterns", [])),
                 hypothesis=hypothesis,
-                goal="initial scan",
-                llm_phase="scan",
+                reasoning=reasoning,
+                goal="initial scan + hypothesize",
+                llm_phase="scan+hypothesize",
                 prompts=dict(self._step_prompts) if self._step_prompts else None,
+                responses=dict(self._step_responses) if self._step_responses else None,
+                world_model=self.world_model.to_dict(),
             )
             self.prev_grid = curr_grid
             self.prev_levels = curr_levels
@@ -210,6 +238,8 @@ class LLMAgent:
             goal=goal, llm_phase="decide",
             report=report,
             prompts=dict(self._step_prompts) if self._step_prompts else None,
+            responses=dict(self._step_responses) if self._step_responses else None,
+            world_model=self.world_model.to_dict(),
         )
 
         self.prev_grid = curr_grid

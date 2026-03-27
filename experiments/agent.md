@@ -17,14 +17,13 @@
 
 ```
 Phase 1 (static_observation):
-  SCAN(전체 분석) → UPDATE(objects 저장) → phase 전환
+  SCAN → HYPOTHESIZE → UPDATE → phase 전환
   DECIDE/EXECUTE 없음.
 
 Phase 2~4:
   DECIDE(1액션) → EXECUTE → OBSERVE(변화 관찰) → EVALUATE → UPDATE
 ```
 
-SCAN과 OBSERVE는 완전히 다른 프롬프트.
 자세한 설명은 thinking_process.md 참고.
 
 ### LLM 호출
@@ -32,7 +31,8 @@ SCAN과 OBSERVE는 완전히 다른 프롬프트.
 | Phase | 순서 | 호출 | 역할 |
 |-------|------|------|------|
 | **Phase 1** | 1 | SCAN | 전체 프레임 분석. objects 추출. |
-| **Phase 1** | 2 | UPDATE | objects를 world_model에 저장. |
+| **Phase 1** | 2 | HYPOTHESIZE | 초기 가설 수립. 오브젝트 역할/게임타입/목표 추측. |
+| **Phase 1** | 3 | UPDATE | objects + 가설을 world_model에 저장. |
 | **Phase 2~4** | 1 | DECIDE | 1개 액션 결정. world_model 기반. |
 | **Phase 2~4** | 2 | (EXECUTE) | 코드가 env.step(action) 실행. |
 | **Phase 2~4** | 3 | OBSERVE | 변화 관찰. 뭐가 바뀌었는지만. |
