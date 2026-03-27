@@ -8,32 +8,29 @@ def build_incident_gameover_message(
 ) -> str:
     obs_str = json.dumps(last_observations[-3:], indent=2, ensure_ascii=False)
     return f"""\
-GAME OVER — DEATH ANALYSIS
+GAME OVER — ANALYZE WHAT HAPPENED
 
-The player died. Analyze:
+The game state changed to GAME_OVER. Analyze:
 
-LAST 3 OBSERVATIONS BEFORE DEATH
-{obs_str}
-
-FRAME RIGHT BEFORE DEATH
+FRAME BEFORE
 {chr(10).join(frame_before_death)}
 
-FRAME AT DEATH
+FRAME AT GAME_OVER
 {chr(10).join(frame_at_death)}
 
 Steps:
-1. What did the player touch/encounter right before dying?
-2. Which grid value at which position caused it?
-3. Was there a warning sign?
-4. How to avoid this in the future?
+1. What changed between the two frames?
+2. Which grid value/position was involved?
+3. Were there any warning signs before this happened?
+4. What rule can be inferred to avoid this?
 
 Respond in JSON:
 {{
-  "death_cause": "what killed the player",
-  "death_position": {{"x": 0, "y": 0}},
-  "death_value": "grid value that caused death",
-  "warning_signs": ["signs before death"],
-  "avoidance_rule": "how to avoid"
+  "cause": "...",
+  "position": {{"x": 0, "y": 0}},
+  "value": "...",
+  "warning_signs": [],
+  "avoidance_rule": "..."
 }}"""
 
 
@@ -46,28 +43,25 @@ def build_incident_levelcomplete_message(
 ) -> str:
     obs_str = json.dumps(last_observations[-3:], indent=2, ensure_ascii=False)
     return f"""\
-LEVEL COMPLETED ({prev_level} → {curr_level}) — WIN ANALYSIS
+LEVEL COMPLETED ({prev_level} -> {curr_level}) — ANALYZE WHAT HAPPENED
 
 The level was cleared. Analyze:
 
-LAST 3 OBSERVATIONS BEFORE WIN
-{obs_str}
-
-FRAME RIGHT BEFORE WIN
+FRAME BEFORE
 {chr(10).join(frame_before_win)}
 
-FRAME AT WIN
+FRAME AT LEVEL_COMPLETE
 {chr(10).join(frame_at_win)}
 
 Steps:
-1. What was the final action/position that triggered completion?
-2. What is the confirmed win condition?
-3. Will this strategy generalize to the next level?
+1. What changed between the two frames?
+2. What was the final action/condition that triggered completion?
+3. What rule can be inferred about the win condition?
 
 Respond in JSON:
 {{
-  "win_trigger": "action/position that triggered win",
-  "win_condition": "confirmed rule for winning",
-  "strategy_generalizes": true,
-  "reasoning": "why this will/won't work for next level"
+  "trigger": "...",
+  "win_condition": "...",
+  "generalizes": true,
+  "reasoning": "..."
 }}"""

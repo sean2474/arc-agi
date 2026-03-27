@@ -73,13 +73,12 @@ STEP 5 - CHALLENGE: What evidence CONTRADICTS your observations?
 Respond in JSON:
 {{
   "objects": {{
-    "lime_block": {{"value": "c", "position": "row 46-47, col 33-37", "type": "unknown"}},
-    "green_border": {{"value": "3", "position": "row 10-60, scattered", "type": "static"}}
+    "name": {{"value": "...", "position": "...", "type": "unknown|static|dynamic"}}
   }},
-  "patterns": ["green(3) forms corridors", "gray(5) rectangular blocks"],
-  "changes": "lime(c) moved up 2 rows, everything else static",
-  "contradictions": ["haven't verified what moves", "could be board manipulation"],
-  "unknowns": ["what triggers level complete", "which element is controllable"]
+  "patterns": [],
+  "changes": "...",
+  "contradictions": [],
+  "unknowns": []
 }}
 
 Rules:

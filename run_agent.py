@@ -40,7 +40,7 @@ def start_model_server(server_cfg: dict) -> None:
     try:
         r = requests.get(api_url, timeout=3)
         if r.status_code == 200:
-            print(f"✅ 모델 서버 이미 실행 중 (port {port})")
+            print(f"[OK] model server already running (port {port})")
             return
     except Exception:
         pass
@@ -86,14 +86,8 @@ def load_config(config_path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def save_run(records: list[StepRecord], game_info: dict, agent_name: str, stats: dict, output_dir: Path):
-    """data/{game_id}/{agent_name}/ 에 결과 저장."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filepath = output_dir / f"run_{ts}.json"
-
-    data = {
+def _build_run_data(records: list[StepRecord], game_info: dict, agent_name: str, stats: dict) -> dict:
+    return {
         "game_id": game_info["game_id"],
         "title": game_info["title"],
         "tags": game_info["tags"],
@@ -107,17 +101,77 @@ def save_run(records: list[StepRecord], game_info: dict, agent_name: str, stats:
         "trajectory": [r.to_dict() for r in records],
     }
 
+
+def save_run(records: list[StepRecord], game_info: dict, agent_name: str, stats: dict, output_dir: Path):
+    """data/{game_id}/{agent_name}/ 에 결과 저장."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filepath = output_dir / f"run_{ts}.json"
+    data = _build_run_data(records, game_info, agent_name, stats)
     with open(filepath, "w") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-
-    print(f"💾 저장: {filepath}")
+    print(f"[SAVE] {filepath}")
     return filepath
+
+
+def save_live(records: list[StepRecord], game_info: dict, agent_name: str, stats: dict, output_dir: Path):
+    """실시간 replay용 live.json 갱신."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    filepath = output_dir / "live.json"
+    data = _build_run_data(records, game_info, agent_name, stats)
+    with open(filepath, "w") as f:
+        json.dump(data, f, ensure_ascii=False)
+
+
+def start_replay_server(live_json_path: Path, port: int = 5556):
+    """replay 서버를 백그라운드 스레드로 시작."""
+    import threading
+    from flask import Flask, jsonify, render_template_string
+    from agents.llm_agent.const import ARC_COLORS
+
+    app = Flask(__name__)
+    app.config["live_path"] = str(live_json_path)
+
+    @app.route("/")
+    def index():
+        try:
+            with open(app.config["live_path"]) as f:
+                data = json.load(f)
+        except Exception:
+            data = {"title": "loading...", "agent_name": "?", "trajectory": []}
+        from replay import HTML
+        return render_template_string(
+            HTML,
+            title=data.get("title", "?"),
+            agent_name=data.get("agent_name", "?"),
+            total=len(data.get("trajectory", [])),
+            colors=ARC_COLORS,
+        )
+
+    @app.route("/data")
+    def data():
+        try:
+            with open(app.config["live_path"]) as f:
+                return jsonify(json.load(f))
+        except Exception:
+            return jsonify({"trajectory": []})
+
+    def run():
+        import logging
+        log = logging.getLogger('werkzeug')
+        log.setLevel(logging.ERROR)
+        app.run(host="0.0.0.0", port=port, debug=False)
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    print(f"[LIVE] replay: http://localhost:{port}")
+    return t
 
 
 def run_game(game_id: str, agent: LLMAgent, max_steps: int, data_dir: str, save_every: int, stop_after_level: int = 0):
     """단일 게임 실행."""
     print(f"\n{'='*60}")
-    print(f"🎮 게임 시작: {game_id}")
+    print(f"[GAME] {game_id}")
     print(f"   에이전트: {agent.name} ({agent.model})")
     print(f"   최대 스텝: {max_steps}")
     print(f"{'='*60}\n")
@@ -125,7 +179,7 @@ def run_game(game_id: str, agent: LLMAgent, max_steps: int, data_dir: str, save_
     arc_client = arc_agi.Arcade()
     env = arc_client.make(game_id)
     if env is None:
-        print(f"❌ 게임 '{game_id}' 생성 실패")
+        print(f"[ERROR] game '{game_id}' creation failed")
         return
 
     info = env.info
@@ -150,6 +204,11 @@ def run_game(game_id: str, agent: LLMAgent, max_steps: int, data_dir: str, save_
     print()
 
     output_dir = Path(data_dir) / game_id / agent.name
+    live_path = output_dir / "live.json"
+
+    # 실시간 replay 서버 시작
+    save_live([], game_info, agent.name, {}, output_dir)
+    start_replay_server(live_path)
 
     for step in range(1, max_steps + 1):
         action, record = agent.get_next_action(step, obs)
@@ -160,34 +219,37 @@ def run_game(game_id: str, agent: LLMAgent, max_steps: int, data_dir: str, save_
 
         if record.reasoning:
             if record.observation:
-                print(f"           💬 {str(record.observation)[:100]}")
+                print(f"       obs: {str(record.observation)[:100]}")
             if record.hypothesis:
-                print(f"           💡 {record.hypothesis[:120]}")
+                print(f"       hyp: {record.hypothesis[:120]}")
             if record.challenge:
-                print(f"           ⚡ {record.challenge[:120]}")
-            print(f"           🎯 {record.goal}")
+                print(f"       chg: {record.challenge[:120]}")
+            print(f"      goal: {record.goal}")
         if record.report:
-            achieved = "✅" if record.report.get("goal_achieved") else "❌"
+            achieved = "[OK]" if record.report.get("goal_achieved") else "[FAIL]"
             print(f"           {achieved} {record.report.get('reasoning', '')[:80]}")
+
+        # 실시간 replay 갱신
+        save_live(agent.history, game_info, agent.name, agent.get_stats(), output_dir)
 
         # 액션 실행
         obs = env.step(action)
 
         # game_over → 자동 리셋
         if obs.state == GameState.GAME_OVER:
-            print(f"  💀 GAME OVER → 자동 리셋")
+            print(f"  [GAME_OVER] auto reset")
             obs = env.step(GameAction.RESET)
             agent.prev_grid = None
             agent.prev_levels = obs.levels_completed
 
         # 레벨 클리어 체크
         if stop_after_level > 0 and obs.levels_completed >= stop_after_level:
-            print(f"\n  ✅ 레벨 {stop_after_level} 클리어! (step {step})")
+            print(f"\n  [LEVEL_CLEAR] level {stop_after_level} (step {step})")
             break
 
         # WIN
         if obs.state == GameState.WIN:
-            print(f"\n  🎉 게임 클리어! (step {step})")
+            print(f"\n  [WIN] game clear (step {step})")
             break
 
         # 중간 저장
@@ -200,16 +262,15 @@ def run_game(game_id: str, agent: LLMAgent, max_steps: int, data_dir: str, save_
     # 스코어카드
     scorecard = arc_client.get_scorecard()
     if scorecard:
-        print(f"\n📊 스코어카드:\n{scorecard}")
+        print(f"\n[SCORECARD]\n{scorecard}")
 
     # 통계
     stats = agent.get_stats()
-    print(f"\n📈 통계:")
-    print(f"   총 스텝: {stats['total_steps']}")
-    print(f"   사이클: {stats['total_cycles']}회 (PLAN→EXECUTE→EVALUATE→UPDATE)")
-    print(f"   LLM 호출: {stats['llm_calls']}회")
-    print(f"   입력 토큰: {stats['input_tokens']:,}")
-    print(f"   출력 토큰: {stats['output_tokens']:,}")
+    print(f"\n[STATS]")
+    print(f"   steps: {stats['total_steps']}")
+    print(f"   llm_calls: {stats['llm_calls']}")
+    print(f"   input_tokens: {stats['input_tokens']:,}")
+    print(f"   output_tokens: {stats['output_tokens']:,}")
 
 
 def main():
@@ -233,7 +294,7 @@ def main():
         arc_client = arc_agi.Arcade()
         games = arc_client.get_environments()
         game_ids = [g.game_id.split("-")[0] for g in games]
-        print(f"🎮 전체 게임 {len(game_ids)}개 실행")
+        print(f"[GAME] running all {len(game_ids)} games")
 
     agent = LLMAgent(
         model=agent_cfg["model"],

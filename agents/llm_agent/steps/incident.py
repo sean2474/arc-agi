@@ -30,6 +30,6 @@ def do_incident(
 
     parsed = agent._call_llm(msg)
     if parsed is None:
-        print(f"  ⚠️ INCIDENT parse fail")
+        print(f"  [PARSE_FAIL] INCIDENT")
         return None
     return parsed

@@ -27,7 +27,7 @@ def do_evaluate(
     parsed = agent._call_llm(msg)
 
     if parsed is None:
-        print(f"  ⚠️ EVALUATE parse fail")
+        print(f"  [PARSE_FAIL] EVALUATE")
         return {
             "goal": last_goal,
             "action": last_action,

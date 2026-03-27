@@ -17,6 +17,6 @@ def do_observe(agent, step: int, curr_grid: list[str], curr_levels: int) -> dict
     )
     parsed = agent._call_llm(msg)
     if parsed is None:
-        print(f"  ⚠️ OBSERVE parse fail")
+        print(f"  [PARSE_FAIL] OBSERVE")
         return {"values": {}, "patterns": [], "unknowns": ["observe failed"]}
     return parsed

@@ -23,7 +23,7 @@ def do_decide(agent, observe_result: dict) -> tuple[GameAction, str, str | None,
     parsed = agent._call_llm(msg)
 
     if parsed is None:
-        print(f"  ⚠️ DECIDE parse fail, random fallback")
+        print(f"  [PARSE_FAIL] DECIDE, random fallback")
         val = random.choice(list(agent.available_values))
         result = action_to_gameaction(val, agent.available_values)
         action, name = result if result else (GameAction.ACTION1, "up")

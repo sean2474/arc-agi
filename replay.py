@@ -229,23 +229,40 @@ document.addEventListener('keydown', e => {
   else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
 });
 
-fetch('/data').then(r => r.json()).then(data => {
-  trajectory = data.trajectory;
-  document.getElementById('slider').max = trajectory.length - 1;
+function loadData() {
+  fetch('/data').then(r => r.json()).then(data => {
+    const newTraj = data.trajectory || [];
+    if (newTraj.length === trajectory.length) return;
 
-  const listEl = document.getElementById('step-list');
-  trajectory.forEach((s, i) => {
-    const isLlm = s.llm_phase || s.llm_called;
-    const div = document.createElement('div');
-    div.className = 'step-item' + (isLlm ? ' llm' : '');
-    const phase = s.llm_phase ? `<span class="step-phase">${s.llm_phase}</span>` : '';
-    div.innerHTML = `<span class="step-num">${s.step}</span><span class="step-action">${s.action}</span>${phase}`;
-    div.onclick = () => goTo(i);
-    listEl.appendChild(div);
-  });
+    const wasAtEnd = currentIdx >= trajectory.length - 1;
+    trajectory = newTraj;
+    document.getElementById('slider').max = Math.max(trajectory.length - 1, 0);
 
-  showStep(0);
-});
+    // rebuild step list
+    const listEl = document.getElementById('step-list');
+    listEl.innerHTML = '';
+    trajectory.forEach((s, i) => {
+      const isLlm = s.llm_phase || s.llm_called;
+      const div = document.createElement('div');
+      div.className = 'step-item' + (isLlm ? ' llm' : '');
+      const phase = s.llm_phase ? `<span class="step-phase">${s.llm_phase}</span>` : '';
+      div.innerHTML = `<span class="step-num">${s.step}</span><span class="step-action">${s.action}</span>${phase}`;
+      div.onclick = () => goTo(i);
+      listEl.appendChild(div);
+    });
+
+    // auto-follow latest step if was at end
+    if (wasAtEnd && trajectory.length > 0) {
+      showStep(trajectory.length - 1);
+    } else if (trajectory.length > 0 && currentIdx === 0) {
+      showStep(0);
+    }
+  }).catch(() => {});
+}
+
+// initial load + poll every 2 seconds
+loadData();
+setInterval(loadData, 2000);
 </script>
 </body>
 </html>"""

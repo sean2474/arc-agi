@@ -91,16 +91,16 @@ class LLMAgent:
 
                 parsed = parse_llm_response(raw_text)
                 if parsed is None:
-                    print(f"  🔍 parse fail — raw (first 500):")
+                    print(f"  [PARSE_FAIL] raw (first 500):")
                     print(f"  {repr(raw_text[:500])}")
                 return parsed
             except KeyboardInterrupt:
                 raise
             except Exception as e:
                 wait = 2 ** attempt * 5
-                print(f"  ⚠️ API error ({e}), retry in {wait}s ({attempt+1}/{retries})")
+                print(f"  [API_ERR] {e}, retry in {wait}s ({attempt+1}/{retries})")
                 time.sleep(wait)
-        print(f"  ❌ API failed after {retries} retries")
+        print(f"  [API_FAIL] after {retries} retries")
         return None
 
     # ── 메인 인터페이스 ──
@@ -121,14 +121,14 @@ class LLMAgent:
 
             if is_game_over or is_level_complete:
                 label = "DEATH" if is_game_over else "WIN"
-                print(f"  🚨 INCIDENT ({label})...")
+                print(f"  [INCIDENT] {label}")
                 incident_result = do_incident(self, curr_grid, is_game_over, is_level_complete, self.prev_levels, curr_levels)
 
-            print(f"  📊 EVALUATE...")
+            print(f"  [EVALUATE]")
             report, discoveries = do_evaluate(self, curr_grid, incident_result)
             self.reports.append(report)
 
-            print(f"  📝 UPDATE...")
+            print(f"  [UPDATE]")
             do_update(self, {"report": report, "goal_achieved": report.get("goal_achieved", False)}, discoveries, incident_result)
 
             # phase 갱신
@@ -138,7 +138,7 @@ class LLMAgent:
         print(f"  [{phase}]")
 
         # OBSERVE
-        print(f"  👁️ OBSERVE...")
+        print(f"  [OBSERVE]")
         observe_result = do_observe(self, step, curr_grid, curr_levels)
 
         # OBSERVE 결과에서 objects를 world_model에 merge
@@ -153,7 +153,7 @@ class LLMAgent:
             self.world_model["phase"] = get_current_phase(self.world_model)
 
         # DECIDE (1개 액션)
-        print(f"  🧠 DECIDE...")
+        print(f"  [DECIDE]")
         action, action_name, reasoning, goal = do_decide(self, observe_result)
 
         # observe 결과에서 hypothesis/challenge 추출

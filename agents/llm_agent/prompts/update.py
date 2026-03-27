@@ -31,26 +31,24 @@ NEW DISCOVERIES
 Update both the summary and world model. Respond in JSON:
 {{
   "updated_summary": {{
-    "notes": "free-text observations and learnings"
+    "notes": "..."
   }},
   "updated_world_model": {{
-    "game_type": {{"hypothesis": "...", "confidence": 0.5}},
+    "game_type": {{"hypothesis": "...", "confidence": 0.0}},
     "actions": {{
-      "up": {{"effect": "moves controllable up 1 cell", "confidence": 0.7}},
-      "down": {{"effect": "likely moves down", "confidence": 0.5}}
+      "action_name": {{"effect": "...", "confidence": 0.0}}
     }},
     "objects": {{
-      "lime_block": {{"value": "c", "position": "row 44-45, col 33-37", "type": "dynamic", "interaction_tested": false}},
-      "green_border": {{"value": "3", "position": "scattered", "type": "static", "interaction_tested": true}}
+      "object_name": {{"value": "...", "position": "...", "type": "unknown|static|dynamic|controllable", "interaction_tested": false}}
     }},
-    "controllable": {{"description": "...", "confidence": 0.7}},
-    "goal": {{"description": "...", "confidence": 0.3}},
+    "controllable": {{"description": "...", "confidence": 0.0}},
+    "goal": {{"description": "...", "confidence": 0.0}},
     "dangers": [],
     "interactions": [
-      {{"controllable": "player", "object": "lime_block", "action": "push", "result": "block moves", "confidence": 0.7}}
+      {{"subject": "...", "object": "...", "action": "...", "result": "...", "confidence": 0.0}}
     ],
-    "immediate_plan": "what to do next step",
-    "strategic_plan": "current phase goal"
+    "immediate_plan": "...",
+    "strategic_plan": "..."
   }}
 }}
 
