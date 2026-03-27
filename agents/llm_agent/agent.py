@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from arcengine import GameAction, GameState
 
-from .const import get_max_sequence_length, ACTION_NAME_TO_NUM
+from .const import ACTION_NAME_TO_NUM
 from .grid_utils import frame_to_compact, detect_triggers
 from .prompts import (
     SYSTEM_PROMPT,
@@ -129,33 +129,20 @@ class LLMAgent:
         self.summary: dict = {}
         self.world_model: dict = {
             "game_type": {"hypothesis": "unknown", "confidence": 0.0},
-            "actions": {},  # setup()에서 available_actions 기반으로 초기화
+            "actions": {},
             "controllable": {"description": None, "confidence": 0.0},
             "goal": {"description": None, "confidence": 0.0},
             "objects": {},
             "dangers": [],
             "interactions": [],
         }
-        self.sequence: list = []
-        self.planned_sequence: list = []
-        self.sequence_goal: str = ""
         self.success_condition: str = ""
         self.failure_condition: str = ""
-        self.replan_conditions: list[str] = []
-        self.confidence: float = 0.0
         self.prev_grid: list[str] | None = None
         self.prev_levels: int = 0
 
-        # 시퀀스 실행 중 수집
-        self.frame_before: list[str] = []
-        self.executed_actions: list[str] = []
-        self.observations: list[dict] = []
-
-        # 누적 reports
+        # 누적
         self.reports: list[dict] = []
-        self.sequence_id: int = 0
-
-        # 게임 정보
         self.game_info: dict = {}
         self.available_values: set[int] = set()
 
@@ -231,15 +218,12 @@ class LLMAgent:
             return {"values": {}, "patterns": [], "unknowns": ["observe failed"]}
         return parsed
 
-    # ── STEP 2: DECIDE ──
+    # ── STEP 2: DECIDE (1개 액션) ──
 
-    def _do_decide(self, observe_result: dict, curr_grid: list[str]):
-        """DECIDE LLM 호출 → 시퀀스 세팅."""
-        max_len = get_max_sequence_length(self.world_model)
-
-        # untested actions 힌트
+    def _do_decide(self, observe_result: dict):
+        """DECIDE LLM 호출 → 1개 액션 반환."""
         untested = [k for k, v in self.world_model.get("actions", {}).items() if v.get("confidence", 0) == 0.0]
-        hint = f"UNTESTED ACTIONS: {untested}. Consider testing one of these first." if untested else ""
+        hint = f"UNTESTED ACTIONS: {untested}. Test one of these." if untested else ""
 
         msg = build_decide_message(
             observe_result=observe_result,
@@ -247,7 +231,6 @@ class LLMAgent:
             world_model=self.world_model,
             reports=self.reports,
             available_actions=self.game_info.get("available_actions", []),
-            max_len=max_len,
             hint=hint,
         )
         parsed = self._call_llm(msg)
@@ -255,36 +238,23 @@ class LLMAgent:
         if parsed is None:
             print(f"  ⚠️ DECIDE 파싱 실패, 랜덤 폴백")
             val = random.choice(list(self.available_values))
-            self._init_sequence([val], "random exploration (parse failed)", "", "", 0.1)
-            return None, "random exploration", None, None
+            result = sequence_item_to_action(val, self.available_values)
+            action, name = result if result else (GameAction.ACTION1, "up")
+            return action, name, None, "random (parse failed)"
 
-        self.confidence = parsed.get("confidence", 0.5)
-        raw_seq = parsed.get("sequence", parsed.get("next_sequence", []))
-
-        effective_len = max(1, int(max_len * self.confidence))
-        goal = parsed.get("sequence_goal", "")
-        success_cond = parsed.get("success_condition", "")
-        failure_cond = parsed.get("failure_condition", "")
-
-        self._init_sequence(raw_seq[:effective_len], goal, success_cond, failure_cond, self.confidence)
-        self.replan_conditions = parsed.get("replan_conditions", [])
+        # 1개 액션 추출
+        raw_action = parsed.get("action", "up")
+        result = sequence_item_to_action(raw_action, self.available_values)
+        if result is None:
+            result = (GameAction.ACTION1, "up")
+        action, action_name = result
 
         reasoning = parsed.get("reasoning", "")
-        win_hyp = parsed.get("win_condition_hypothesis", "")
-        return reasoning, goal, win_hyp, success_cond
+        goal = parsed.get("goal", parsed.get("sequence_goal", ""))
+        self.success_condition = parsed.get("success_condition", "")
+        self.failure_condition = parsed.get("failure_condition", "")
 
-    def _init_sequence(self, seq: list, goal: str, success_cond: str, failure_cond: str, confidence: float):
-        """시퀀스 실행 준비 (공통)."""
-        self.sequence = list(seq)
-        self.planned_sequence = list(seq)
-        self.sequence_goal = goal
-        self.success_condition = success_cond
-        self.failure_condition = failure_cond
-        self.confidence = confidence
-        self.frame_before = []  # _run_cycle에서 설정
-        self.executed_actions = []
-        self.observations = []
-        self.sequence_id += 1
+        return action, action_name, reasoning, goal
 
     # ── STEP 2a: INCIDENT (game_over / level_complete 시에만) ──
 
@@ -398,57 +368,30 @@ class LLMAgent:
     # ── 메인 인터페이스 ──
 
     def get_next_action(self, step: int, obs) -> tuple[GameAction, StepRecord]:
-        """매 스텝 호출. 시퀀스 실행 or 3단계 사이클."""
+        """매 스텝 호출. 매번 OBSERVE → DECIDE(1액션)."""
         curr_grid = frame_to_compact(obs.frame[-1])
         curr_state = obs.state
         curr_levels = obs.levels_completed
 
-        # 트리거 체크
-        triggers, diff = detect_triggers(
-            self.prev_grid, curr_grid,
-            self.prev_levels, curr_state, curr_levels,
-            self.replan_conditions,
-        )
-
-        need_cycle = False
-        abort_reason = None
-
-        if len(self.sequence) == 0 and len(self.executed_actions) == 0:
-            # 첫 시작 — PLAN만 필요
-            need_cycle = True
-        elif len(self.sequence) == 0:
-            # 시퀀스 정상 소진 — EVALUATE → UPDATE → PLAN
-            need_cycle = True
-        elif triggers:
-            # 트리거 발생 — 시퀀스 중단 → EVALUATE → UPDATE → PLAN
-            need_cycle = True
-            abort_reason = ", ".join(triggers)
-            self.sequence = []
-
-        if need_cycle:
-            action, record = self._run_cycle(
-                step, curr_grid, curr_state, curr_levels, abort_reason,
-            )
-        else:
-            action, record = self._execute_sequence(step, curr_grid, curr_state, curr_levels, diff)
+        action, record = self._run_cycle(step, curr_grid, curr_state, curr_levels)
 
         self.prev_grid = curr_grid
         self.prev_levels = curr_levels
         self.history.append(record)
         return action, record
 
-    def _run_cycle(self, step, curr_grid, curr_state, curr_levels, abort_reason):
-        """[INCIDENT] → EVALUATE → UPDATE → OBSERVE → DECIDE → 첫 액션 반환."""
+    def _run_cycle(self, step, curr_grid, curr_state, curr_levels):
+        """[INCIDENT] → EVALUATE → UPDATE → OBSERVE → DECIDE(1액션) 반환."""
         report = None
         incident_result = None
 
-        # INCIDENT + EVALUATE + UPDATE (첫 시작이 아닌 경우에만)
-        if self.executed_actions:
+        # INCIDENT + EVALUATE + UPDATE (첫 스텝 제외)
+        if self.prev_grid is not None:
             is_game_over = curr_state == GameState.GAME_OVER
             is_level_complete = curr_levels > self.prev_levels
 
             if is_game_over or is_level_complete:
-                label = "💀 DEATH" if is_game_over else "🎉 WIN"
+                label = "DEATH" if is_game_over else "WIN"
                 print(f"  🚨 INCIDENT ({label})...")
                 incident_result = self._do_incident(
                     curr_grid,
@@ -459,9 +402,10 @@ class LLMAgent:
                 )
 
             print(f"  📊 EVALUATE...")
+            last_action = self.history[-1].action if self.history else "unknown"
+            last_goal = self.history[-1].goal if self.history else ""
             report, discoveries = self._do_evaluate(
-                abort_reason, curr_grid,
-                incident_result=incident_result,
+                None, curr_grid, incident_result=incident_result,
             )
             self.reports.append(report)
 
@@ -476,64 +420,28 @@ class LLMAgent:
         print(f"  👁️ OBSERVE...")
         observe_result = self._do_observe(step, curr_grid, curr_levels)
 
-        # DECIDE
+        # DECIDE (1개 액션)
         print(f"  🧠 DECIDE...")
-        reasoning, seq_goal, win_hyp, success_cond = self._do_decide(observe_result, curr_grid)
-        self.frame_before = list(curr_grid)
-
-        # 시퀀스에서 첫 액션 꺼내기
-        if self.sequence:
-            item = self.sequence.pop(0)
-            result = sequence_item_to_action(item, self.available_values)
-            action, action_name = result if result else (GameAction.ACTION1, "up(fallback)")
-        else:
-            action, action_name = GameAction.ACTION1, "up(empty_seq)"
-
-        self.executed_actions.append(action_name)
-
-        if self.prev_grid and curr_grid:
-            self.observations.append({
-                "step": step,
-                "action": action_name,
-            })
+        action, action_name, reasoning, goal = self._do_decide(observe_result)
 
         # observe_result에서 hypothesis/challenge 추출
         game_type = observe_result.get("game_type_hypothesis", {})
         ctrl = observe_result.get("controllable_element", {})
-        goal = observe_result.get("goal_hypothesis", {})
-        hypothesis = f"game={game_type.get('type','?')}, control={ctrl.get('description','?')}, goal={goal.get('description','?')}"
+        goal_hyp = observe_result.get("goal_hypothesis", {})
+        hypothesis = f"game={game_type.get('type','?')}, control={ctrl.get('description','?')}, goal={goal_hyp.get('description','?')}"
         challenge = ", ".join(observe_result.get("contradictions", []))
 
-        return action, StepRecord(
+        record = StepRecord(
             step=step, action=action_name, state=curr_state.value,
             levels_completed=curr_levels, grid=curr_grid,
-            trigger=abort_reason,
             reasoning=reasoning,
             observation=str(observe_result.get("changes_from_summary", "")),
             hypothesis=hypothesis, challenge=challenge,
-            sequence_goal=seq_goal, llm_phase="observe+decide",
+            sequence_goal=goal, llm_phase="observe+decide",
             report=report,
         )
 
-    def _execute_sequence(self, step, curr_grid, curr_state, curr_levels, diff):
-        """시퀀스에서 다음 액션 꺼내서 실행."""
-        item = self.sequence.pop(0)
-        result = sequence_item_to_action(item, self.available_values)
-        action, action_name = result if result else (GameAction.ACTION1, "ACTION1(invalid)")
-
-        self.executed_actions.append(action_name)
-
-        self.observations.append({
-            "step": step,
-            "action": action_name,
-        })
-
-        return action, StepRecord(
-            step=step, action=action_name, state=curr_state.value,
-            levels_completed=curr_levels, grid=curr_grid,
-            trigger=None, reasoning=None, observation=None,
-            sequence_goal=self.sequence_goal, llm_phase=None,
-        )
+        return action, record
 
     def get_stats(self) -> dict:
         return {
@@ -542,7 +450,6 @@ class LLMAgent:
             "input_tokens": self.total_input_tokens,
             "output_tokens": self.total_output_tokens,
             "world_model": self.world_model,
-            "total_cycles": self.sequence_id,
             "reports": self.reports,
             "summary": self.summary,
         }

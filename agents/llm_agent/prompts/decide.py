@@ -12,7 +12,6 @@ def build_decide_message(
     world_model: dict,
     reports: list[dict],
     available_actions: list[dict],
-    max_len: int,
     hint: str = "",
 ) -> str:
     reports_str = json.dumps(reports[-3:], indent=2, ensure_ascii=False) if reports else "[]"
@@ -31,34 +30,28 @@ SUMMARY (accumulated knowledge)
 RECENT REPORTS (last 3)
 {reports_str}
 {hint_section}
-CONSTRAINT: max sequence length = {max_len}
 Available actions: [{actions_names}]
 
-Based on the observation and world model, decide what to do next.
+Choose ONE action to take next.
 
 You MUST answer:
 1. What is your current win condition hypothesis?
-2. What specific thing will this sequence test or accomplish?
-3. How will you know if it succeeded or failed?
+2. What will this single action test or accomplish?
+3. How will you know if it succeeded?
 
 Respond in JSON:
 {{
   "win_condition_hypothesis": "reach the teal(b) region at row 61",
-  "reasoning": "why this action sequence",
-  "sequence": ["down"],
-  "sequence_goal": "move player from (40,38) to (41,38) to test if down moves player",
+  "reasoning": "why this action",
+  "action": "down",
+  "goal": "move player from row 40 to row 41 to test if down moves player",
   "success_condition": "player position changes to row 41",
-  "failure_condition": "no change in grid",
-  "confidence": 0.4,
-  "replan_conditions": ["no_change", "game_over", "new_value"]
+  "failure_condition": "no change in grid"
 }}
 
 Rules:
-- win_condition_hypothesis: REQUIRED.
-- sequence: use action NAMES [{actions_names}]. Click: ["click", x, y].
-  You can return 1 to {max_len} actions. Fewer is fine when uncertain.
-- sequence_goal: MUST be specific with coordinates or verifiable conditions.
+- action: ONE action name. [{actions_names}]. Click: ["click", x, y].
+- goal: MUST be specific with coordinates or verifiable conditions.
   BAD: "explore the area"  GOOD: "move to row 45 col 30"
-- success_condition / failure_condition: EVALUATE uses these to judge.
 - Prioritize testing actions with LOW confidence in the WORLD MODEL.
 - Check REPORTS to avoid repeating failed strategies."""

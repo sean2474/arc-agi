@@ -21,19 +21,7 @@ ACTION_NAME_TO_NUM = {v: k for k, v in ACTION_NUM_TO_NAME.items()}
 ACTION_PROMPT_LINE = "  ".join(f"{k}: {v}" for k, v in ACTION_LABELS.items())
 
 
-# ── 시퀀스 길이 제한 ──
-MAX_SEQUENCE_LENGTH = 5
-
-
-def get_max_sequence_length(world_model: dict) -> int:
-    """action confidence 평균이 0.7 미만이면 1, 이상이면 최대 5. LLM은 1~5 중 자유 선택."""
-    actions = world_model.get("actions", {})
-    if not actions:
-        return 1
-    avg = sum(a.get("confidence", 0) for a in actions.values()) / len(actions)
-    if avg < 0.7:
-        return 1
-    return MAX_SEQUENCE_LENGTH
+# DECIDE는 항상 1개 액션만 반환
 
 
 # ── ARC 16색 팔레트 ──
