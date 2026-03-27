@@ -8,6 +8,12 @@
 
 ## 아이디어
 
+### EVALUATE/UPDATE에 grid가 필요한가?
+OBSERVE가 "뭐가 바뀌었는지"를 요약해주면, EVALUATE/UPDATE는 OBSERVE 결과만 보고 판단 가능.
+grid를 빼면 토큰 ~8000자 절약 (64x64 hex 2장).
+하지만 OBSERVE가 놓친 변화를 EVALUATE가 못 잡을 수도 있음.
+→ 실험 필요: grid 있을 때 vs 없을 때 성능 비교
+
 ### diff grid 표현
 LLM이 64x64 텍스트 두 개를 비교하는 건 거의 불가능.
 대신 프레임을 before/after 튜플로 표현:

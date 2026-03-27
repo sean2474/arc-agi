@@ -133,7 +133,7 @@ function showStep(idx) {
   // header
   const phase = s.llm_phase || (s.llm_called ? 'llm' : null);
   let badge = '<span class="phase-badge phase-seq">↻ seq</span>';
-  if (phase === 'observe+decide') badge = '<span class="phase-badge phase-observe">👁️🧠 observe+decide</span>';
+  if (phase === 'observe+decide') badge = '<span class="phase-badge phase-observe">observe+decide</span>';
   else if (phase) badge = `<span class="phase-badge phase-observe">${esc(phase)}</span>`;
 
   html += `<div class="info-section"><div class="info-label">Step ${s.step} — ${esc(s.action)} ${badge}</div></div>`;
@@ -142,22 +142,22 @@ function showStep(idx) {
     html += `<div class="info-section"><div class="info-label">Trigger</div><div class="info-content">${esc(s.trigger)}</div></div>`;
   }
   if (s.hypothesis) {
-    html += `<div class="info-section"><div class="info-label">💡 Hypothesis</div><div class="info-content">${esc(s.hypothesis)}</div></div>`;
+    html += `<div class="info-section"><div class="info-label">Hypothesis</div><div class="info-content">${esc(s.hypothesis)}</div></div>`;
   }
   if (s.challenge) {
-    html += `<div class="info-section"><div class="info-label">⚡ Challenge</div><div class="info-content">${esc(s.challenge)}</div></div>`;
+    html += `<div class="info-section"><div class="info-label">Challenge</div><div class="info-content">${esc(s.challenge)}</div></div>`;
   }
   if (s.observation) {
-    html += `<div class="info-section"><div class="info-label">💬 Observation</div><div class="info-content">${esc(s.observation)}</div></div>`;
+    html += `<div class="info-section"><div class="info-label">Observation</div><div class="info-content">${esc(s.observation)}</div></div>`;
   }
   if (s.reasoning) {
-    html += `<div class="info-section"><div class="info-label">🧠 Reasoning</div><div class="info-content">${esc(s.reasoning)}</div></div>`;
+    html += `<div class="info-section"><div class="info-label">Reasoning</div><div class="info-content">${esc(s.reasoning)}</div></div>`;
   }
   if (s.sequence_goal) {
-    html += `<div class="info-section"><div class="info-label">🎯 Sequence Goal</div><div class="info-content">${esc(s.sequence_goal)}</div></div>`;
+    html += `<div class="info-section"><div class="info-label">Goal</div><div class="info-content">${esc(s.goal || s.sequence_goal)}</div></div>`;
   }
   if (s.report) {
-    const achieved = s.report.goal_achieved ? '✅' : '❌';
+    const achieved = s.report.goal_achieved ? '[OK]' : '[FAIL]';
     html += `<div class="info-section"><div class="info-label">${achieved} Report</div>`;
     html += `<div class="info-content">${esc(s.report.reasoning || '')}</div>`;
     if (s.report.key_learnings && s.report.key_learnings.length) {
@@ -167,7 +167,7 @@ function showStep(idx) {
   }
   // prompt button
   if (s.prompts) {
-    html += `<div class="info-section"><button class="btn" onclick="showPrompts(${idx})" style="font-size:11px;">📋 View Prompts</button></div>`;
+    html += `<div class="info-section"><button class="btn" onclick="showPrompts(${idx})" style="font-size:11px;">View Prompts</button></div>`;
   }
 
   document.getElementById('info-panel').innerHTML = html;
@@ -274,7 +274,7 @@ def find_latest_run(path: Path) -> Path:
         return path
     runs = sorted(path.glob("run_*.json"))
     if not runs:
-        print(f"❌ {path}에 run 파일 없음")
+        print(f"[ERROR] no run files in {path}")
         sys.exit(1)
     return runs[-1]
 

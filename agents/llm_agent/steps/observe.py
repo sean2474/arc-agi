@@ -1,22 +1,23 @@
-"""STEP 1: OBSERVE — 순수 관찰."""
+"""STEP: OBSERVE — Phase 2+ 전용. 액션 실행 후 변화만 관찰."""
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..agent import LLMAgent
 
 from ..prompts import build_observe_message
 
 
-def do_observe(agent, step: int, curr_grid: list[str], curr_levels: int) -> dict:
+def do_observe(agent: LLMAgent, action_taken: str, goal: str, prev_grid: list[str], curr_grid: list[str]) -> dict:
     msg = build_observe_message(
-        game_id=agent.game_info.get("game_id", "unknown"),
-        available_actions=agent.game_info.get("available_actions", []),
-        levels_completed=curr_levels,
-        win_levels=agent.game_info.get("win_levels", 0),
-        step=step,
-        summary=agent.summary,
-        world_model=agent.world_model,
-        grid=curr_grid,
-        prev_grid=agent.prev_grid,
+        world_model=agent.world_model.to_dict(),
+        action_taken=action_taken,
+        goal=goal,
+        prev_grid=prev_grid,
+        curr_grid=curr_grid,
     )
     parsed = agent._call_llm(msg, label="observe")
     if parsed is None:
         print(f"  [PARSE_FAIL] OBSERVE")
-        return {"values": {}, "patterns": [], "unknowns": ["observe failed"]}
+        return {"changes": "unknown", "moved_objects": {}, "new_objects": {}, "contradictions": []}
     return parsed

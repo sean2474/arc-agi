@@ -1,10 +1,15 @@
 """STEP 3: EVALUATE — 결과 평가."""
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..agent import LLMAgent
+    
 from ..prompts import build_evaluate_message
 
 
 def do_evaluate(
-    agent,
+    agent: LLMAgent,
     curr_grid: list[str],
     incident_result: dict | None = None,
 ) -> tuple[dict, list]:

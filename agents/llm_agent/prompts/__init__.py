@@ -1,4 +1,5 @@
 from .system import SYSTEM_PROMPT
+from .scan import build_scan_message
 from .observe import build_observe_message
 from .decide import build_decide_message
 from .incident import build_incident_gameover_message, build_incident_levelcomplete_message
@@ -8,6 +9,7 @@ from .parse import parse_llm_response
 
 __all__ = [
     "SYSTEM_PROMPT",
+    "build_scan_message",
     "build_observe_message",
     "build_decide_message",
     "build_incident_gameover_message",

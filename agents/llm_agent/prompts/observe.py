@@ -1,88 +1,54 @@
+"""OBSERVE — Phase 2+ 전용. 액션 실행 후 변화만 관찰."""
+
 import json
-from ..const import ACTION_NUM_TO_NAME
-
-
-def _actions_as_names(available_actions: list[dict]) -> str:
-    return ", ".join(ACTION_NUM_TO_NAME.get(a["value"], "?") for a in available_actions)
 
 
 def build_observe_message(
-    game_id: str,
-    available_actions: list[dict],
-    levels_completed: int,
-    win_levels: int,
-    step: int,
-    summary: dict,
     world_model: dict,
-    grid: list[str],
-    prev_grid: list[str] | None = None,
+    action_taken: str,
+    goal: str,
+    prev_grid: list[str],
+    curr_grid: list[str],
 ) -> str:
-    prev_section = ""
-    if prev_grid:
-        prev_section = f"""
-PREVIOUS FRAME (before last action)
-{chr(10).join(prev_grid)}
-"""
-
-    phase = world_model.get("phase", "static_observation")
-
     return f"""\
-GAME INFO
-  game_id: {game_id}
-  available_actions: [{_actions_as_names(available_actions)}]
-  levels_completed: {levels_completed} / {win_levels}
-  step: {step}
-  phase: {phase}
-
 WORLD MODEL
 {json.dumps(world_model, indent=2, ensure_ascii=False)}
 
-SUMMARY
-{json.dumps(summary, indent=2, ensure_ascii=False)}
-{prev_section}
-CURRENT FRAME
-{chr(10).join(grid)}
+ACTION TAKEN: {action_taken}
+GOAL: {goal}
 
-You are ONLY observing. Do NOT decide what to do. Just analyze.
+FRAME BEFORE
+{chr(10).join(prev_grid)}
 
-Work through these steps:
+FRAME AFTER
+{chr(10).join(curr_grid)}
 
-STEP 1 - OBJECTS: List every distinguishable object/region on screen.
-  For each: hex value, color name, position (row/col range), size, shape.
-  An "object" = any visually distinct group of cells (block, line, border, isolated pixel).
+What changed after the action? Focus ONLY on differences.
 
-STEP 2 - PATTERNS: What structures do you see?
-  Rectangles, corridors, borders, isolated pixels, repeating patterns?
+STEP 1 - DIFF: Compare FRAME BEFORE and FRAME AFTER.
+  Which cells changed? Which objects moved, appeared, or disappeared?
+  Not all changes are meaningful — focus on changes that correlate with the action.
 
-STEP 3 - DIFF: Compare PREVIOUS FRAME and CURRENT FRAME.
-  What moved? What appeared? What disappeared?
-  Which objects changed position? Which stayed static?
-  Not all changes are meaningful — focus on changes that correlate with actions.
-  If no previous frame, skip this step.
+STEP 2 - CLASSIFY: Based on the changes:
+  - Which objects moved? -> type: "dynamic"
+  - Which objects stayed? -> type: "static"
 
-STEP 4 - CLASSIFY OBJECTS: Based on DIFF results:
-  - Which objects moved? → type: "dynamic"
-  - Which objects didn't move? → type: "static"
-  - If no previous frame, all objects are type: "unknown"
+STEP 3 - NEW OBJECTS: Any objects that weren't in the WORLD MODEL before?
 
-STEP 5 - CHALLENGE: What evidence CONTRADICTS your observations?
-  - Could something you classified as static actually be dynamic?
-  - There may be no controllable element — it could be a board manipulation game.
-  - What don't you know that could change everything?
+STEP 4 - CHALLENGE: What could contradict your observations?
+  - Could something classified as static actually be dynamic?
+  - Did something unexpected happen?
 
 Respond in JSON:
 {{
-  "objects": {{
-    "name": {{"value": "...", "position": "...", "type": "unknown|static|dynamic"}}
-  }},
-  "patterns": [],
   "changes": "...",
-  "contradictions": [],
-  "unknowns": []
+  "moved_objects": {{}},
+  "new_objects": {{}},
+  "static_objects": [],
+  "contradictions": []
 }}
 
 Rules:
-- Do NOT suggest actions. Do NOT plan. Observe ONLY.
-- STEP 5 (CHALLENGE) is critical. Bad assumptions kill runs.
-- Be specific about positions: use row/column ranges.
-- List ALL distinguishable objects, even if you think they're just background."""
+- Do NOT re-analyze all objects from scratch. Focus on CHANGES only.
+- Do NOT suggest actions or plan. Observe ONLY.
+- Be specific about positions."""
