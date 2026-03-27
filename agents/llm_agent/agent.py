@@ -3,7 +3,22 @@
 OBSERVE → DECIDE(1액션) → EXECUTE → EVALUATE → UPDATE
 """
 
+import time
+import functools
+
 from arcengine import GameAction, GameState
+
+
+def timed(fn):
+    """메서드 실행 시간을 출력하는 데코레이터."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = fn(*args, **kwargs)
+        elapsed = time.time() - start
+        print(f"  [{fn.__name__}] {elapsed:.1f}s")
+        return result
+    return wrapper
 
 from .const import ACTION_NUM_TO_NAME, get_current_phase, get_phase_hint
 from .grid_utils import frame_to_compact
@@ -46,6 +61,7 @@ class LLMAgent:
         self.llm_call_count: int = 0
         self.total_input_tokens: int = 0
         self.total_output_tokens: int = 0
+        self._step_prompts: dict = {}  # 현재 스텝의 프롬프트 수집용
 
     @staticmethod
     def _init_world_model() -> dict:
@@ -97,7 +113,9 @@ class LLMAgent:
 
     # ── LLM 호출 래퍼 ──
 
-    def _call_llm(self, user_msg: str, retries: int = 3) -> dict | None:
+    def _call_llm(self, user_msg: str, retries: int = 3, label: str = "") -> dict | None:
+        if label:
+            self._step_prompts[label] = user_msg
         import time
         for attempt in range(retries):
             try:
@@ -146,12 +164,14 @@ class LLMAgent:
             self.world_model["phase"] = get_current_phase(self.world_model)
         return obs_objects
 
+    @timed
     def get_next_action(self, step: int, obs) -> tuple[GameAction, StepRecord]:
         """매 스텝 호출. Phase에 따라 다른 사이클."""
         curr_grid = frame_to_compact(obs.frame[-1])
         curr_state = obs.state
         curr_levels = obs.levels_completed
 
+        self._step_prompts = {}  # 새 스텝 시작 시 리셋
         report = None
         incident_result = None
 
@@ -195,12 +215,12 @@ class LLMAgent:
                 hypothesis=hypothesis, challenge=challenge,
                 goal="static observation — no action taken",
                 llm_phase="observe",
+                prompts=dict(self._step_prompts) if self._step_prompts else None,
             )
             self.prev_grid = curr_grid
             self.prev_levels = curr_levels
             self.history.append(record)
-            # phase가 이미 action_discovery로 전환됐을 것
-            return GameAction.RESET, record  # no-op action
+            return None, record  # no action to execute
 
         # Phase 2~4: DECIDE(1액션) → EXECUTE
         print(f"  [DECIDE]")
@@ -217,6 +237,7 @@ class LLMAgent:
             hypothesis=hypothesis, challenge=challenge,
             goal=goal, llm_phase="observe+decide",
             report=report,
+            prompts=dict(self._step_prompts) if self._step_prompts else None,
         )
 
         self.prev_grid = curr_grid

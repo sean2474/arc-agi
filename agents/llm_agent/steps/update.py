@@ -21,7 +21,7 @@ def do_update(agent, evaluation: dict, discoveries: list[str], incident_result: 
         discoveries=discoveries,
         incident_result=incident_result,
     )
-    parsed = agent._call_llm(msg)
+    parsed = agent._call_llm(msg, label="update")
 
     if parsed is None:
         print(f"  [PARSE_FAIL] UPDATE, keeping current state")

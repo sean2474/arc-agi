@@ -24,7 +24,7 @@ def do_evaluate(
         frame_after=curr_grid,
         incident_result=incident_result,
     )
-    parsed = agent._call_llm(msg)
+    parsed = agent._call_llm(msg, label="evaluate")
 
     if parsed is None:
         print(f"  [PARSE_FAIL] EVALUATE")

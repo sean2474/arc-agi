@@ -20,7 +20,7 @@ def do_decide(agent, observe_result: dict) -> tuple[GameAction, str, str | None,
         available_actions=agent.game_info.get("available_actions", []),
         hint=hint,
     )
-    parsed = agent._call_llm(msg)
+    parsed = agent._call_llm(msg, label="decide")
 
     if parsed is None:
         print(f"  [PARSE_FAIL] DECIDE, random fallback")

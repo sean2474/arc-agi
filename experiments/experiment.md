@@ -2,9 +2,32 @@
 
 ## TODO
 
-- [ ] Qwen3-8B 첫 테스트 (Phase System + <think> 파싱 + 1액션)
+- [ ] Qwen3-8B 테스트 (Phase System + <think> 파싱 + 1액션 + Phase 1 버그 수정)
 - [ ] 배경 자동 감지 (값 분포 통계 → OBSERVE 힌트)
 - [ ] VLM 병행 (형태 인식)
+
+## 아이디어
+
+### diff grid 표현
+LLM이 64x64 텍스트 두 개를 비교하는 건 거의 불가능.
+대신 프레임을 before/after 튜플로 표현:
+
+```
+grid_diff -> [[(prev_val, after_val), (prev_val, after_val), ...], ...]
+```
+
+변하지 않은 셀은 단일 값, 변한 셀은 (before, after) 튜플로.
+이러면 LLM이 한 그리드만 보면서 "어디가 변했는지" 바로 알 수 있음.
+
+예: `"44(4c)44"` → 가운데 셀이 4→c로 변함
+
+또는 코드가 diff를 계산해서 요약만 전달하는 방법도 있음:
+```
+DIFF: 52 cells changed, mainly in rows 30-50 cols 20-40
+  3→c: 12 cells, c→5: 15 cells, 5→3: 8 cells
+```
+
+→ 실험해서 어떤 방식이 8B 모델에 효과적인지 비교 필요
 
 ## 관찰
 

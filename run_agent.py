@@ -232,8 +232,8 @@ def run_game(game_id: str, agent: LLMAgent, max_steps: int, data_dir: str, save_
         # 실시간 replay 갱신
         save_live(agent.history, game_info, agent.name, agent.get_stats(), output_dir)
 
-        # Phase 1 (observe_only) → 액션 실행 안 함
-        if record.action == "observe_only":
+        # action이 None이면 (Phase 1 observe_only) 실행 안 함
+        if action is None:
             continue
 
         # 액션 실행

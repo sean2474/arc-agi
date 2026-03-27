@@ -17,6 +17,7 @@ class StepRecord:
     goal: str | None = None
     llm_phase: str | None = None
     report: dict | None = None
+    prompts: dict | None = None
 
     def to_dict(self) -> dict:
         d = {
@@ -34,4 +35,6 @@ class StepRecord:
         }
         if self.report:
             d["report"] = self.report
+        if self.prompts:
+            d["prompts"] = self.prompts
         return d
