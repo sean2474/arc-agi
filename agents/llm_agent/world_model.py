@@ -96,8 +96,12 @@ class WorldModel:
 
     def merge_objects(self, new_objects: dict):
         """LLM이 반환한 objects를 merge. 기존 키면 update, 새 키면 추가."""
+        if not isinstance(new_objects, dict):
+            return
         for k, v in new_objects.items():
-            if k in self._data["objects"]:
+            if not isinstance(v, dict):
+                continue  # skip non-dict values (LLM sometimes returns strings)
+            if k in self._data["objects"] and isinstance(self._data["objects"][k], dict):
                 self._data["objects"][k].update(v)
             else:
                 self._data["objects"][k] = v
