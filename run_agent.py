@@ -214,7 +214,7 @@ def run_game(game_id: str, agent: LLMAgent, max_steps: int, data_dir: str, save_
         action, record = agent.get_next_action(step, obs)
 
         # 로그
-        phase = agent.world_model.get("phase", "")
+        phase = agent.world_model.phase
         print(f"  [{phase}] step {step:3d} | {record.action:<20s} | state={record.state} lvl={record.levels_completed}")
 
         if record.reasoning:
