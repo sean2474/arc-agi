@@ -1,7 +1,7 @@
 """SCAN — Phase 1 전용. 첫 프레임 전체 분석."""
 
 import json
-from ..const import ACTION_NUM_TO_NAME
+from ...const import ACTION_NUM_TO_NAME
 
 
 def _actions_as_names(available_actions: list[dict]) -> str:

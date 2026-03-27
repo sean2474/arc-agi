@@ -8,16 +8,48 @@
 
 ## 아이디어
 
-### EVALUATE/UPDATE에 grid가 필요한가?
-OBSERVE가 "뭐가 바뀌었는지"를 요약해주면, EVALUATE/UPDATE는 OBSERVE 결과만 보고 판단 가능.
-grid를 빼면 토큰 ~8000자 절약 (64x64 hex 2장).
-하지만 OBSERVE가 놓친 변화를 EVALUATE가 못 잡을 수도 있음.
-→ 실험 필요: grid 있을 때 vs 없을 때 성능 비교
+### EVALUATE/UPDATE에 grid 제거 결정
+OBSERVE에 코드가 계산한 diff 요약을 전달하고, EVALUATE/UPDATE는 OBSERVE 결과만 사용.
+grid 원본은 SCAN에서만 사용 (첫 프레임 전체 분석).
+이유: 8B 모델이 64x64 hex 문자열 비교 불가능 → "no changes detected" 반복 문제.
 
 ### [해결 필요] LLM이 64x64 grid diff를 못 잡는 문제
 8B 모델이 4096자 hex 문자열 두 개를 텍스트로 비교하는 건 불가능.
 실제로 변화가 있는데 "no changes detected"라고 계속 반복.
 → 코드가 diff를 계산해서 OBSERVE 프롬프트에 요약으로 전달해야 함.
+
+### [핵심 문제] 텍스트 LLM이 64x64 grid를 제대로 못 읽음
+SCAN도 품질이 낮음 — 오브젝트 추출 부정확 (위치/값 불일치, 의미없는 오브젝트 생성)
+OBSERVE도 변화를 못 잡음 — "no changes detected" 반복
+원인: 8B 텍스트 모델이 4096자 hex 배열을 시각적으로 이해하는 건 한계.
+
+### CNN + LLM 하이브리드 아이디어
+
+Stochastic Goose (CNN 기반 랜덤 탐색)가 25% 달성.
+런타임 29초로 110게임 처리. "변화량이 큰 액션"을 찾는 단순 전략.
+
+이걸 LLM과 결합하면:
+- Phase A (CNN 빠른 탐색, ~30초): 각 액션을 빠르게 시도, action→effect map 수집
+  - 어떤 액션이 프레임을 바꾸는지, game_over/level_complete 이벤트 수집
+- Phase B (LLM 규칙 해석, 1~2번 호출): CNN이 수집한 데이터를 한번에 전달
+  - "up → 이 영역 변화, game_over가 이때 발생" → LLM이 규칙/goal 해석
+- Phase C (LLM guided play): LLM 전략 + CNN 빠른 실행
+  - 필요할 때만 LLM 재호출
+
+시간 예산: 게임당 ~90초 → 110게임 = ~2.7시간. 6시간 여유.
+LLM 호출 수가 극적으로 줄어듦 (매 스텝 4회 → 게임당 2~3회).
+
+기존 구조(매 스텝 LLM 4회)와의 차이:
+- 기존: 스텝당 60-120초 → 게임당 2-3스텝밖에 못 함
+- CNN 하이브리드: 탐색은 CNN이 빠르게, LLM은 해석만
+
+### VLM 사용 방안
+SCAN과 OBSERVE에 VLM 사용. DECIDE/EVALUATE/UPDATE는 텍스트 LLM 유지.
+- grid를 이미지로 렌더링 (64x64 pixel → 확대)
+- SCAN: VLM에게 이미지 보여주고 오브젝트 추출
+- OBSERVE: before/after 이미지 2장으로 변화 관찰
+- 순차 실행이면 GPU 메모리 문제 없음 (VLM 먼저, 언로드, 텍스트 LLM 로드)
+- 또는 작은 VLM(Qwen2-VL-2B 등)이면 동시에 올려도 가능
 
 ### diff grid 표현
 LLM이 64x64 텍스트 두 개를 비교하는 건 거의 불가능.

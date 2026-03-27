@@ -1,15 +1,23 @@
 # ARC-AGI-3 실험 설정
 
 server:
+  # Text LLM
   model_path: "./qwen3-8b"            # 로컬 모델 경로
   port: 8080                          # vLLM 서버 포트
   extra_args: "--served-model-name qwen3-8b --gpu-memory-utilization 0.85"
+
+  # VLM
+  vlm_model_path: "./qwen2.5-vl-7b"
+  vlm_port: 8081
+  vlm_extra_args: "--served-model-name qwen2.5-vl-7b"
 
 agent:
   name: "qwen3_v0"                    # 저장 디렉토리 이름
   model: "qwen3-8b"                   # 모델 이름 (--served-model-name과 일치)
   # max_tokens: 무제한 (think 모드에서 충분한 토큰 필요)
   api_base: "http://localhost:8080/v1"  # OpenAI-compatible endpoint
+  vlm_model: "qwen2.5-vl-7b"
+  vlm_api_base: "http://localhost:8081/v1"
 
 game:
   ids: ["ls20"]                       # 빈 리스트 = 모든 게임

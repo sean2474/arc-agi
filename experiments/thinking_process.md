@@ -1,35 +1,49 @@
 # Thinking Process — 각 단계별 설명
 
+## 모델 구성
+
+두 개의 모델을 사용하는 하이브리드 구조.
+
+| 역할 | 모델 | 용도 |
+|------|------|------|
+| VLM | Qwen2.5-VL-7B | SCAN, OBSERVE (시각 분석이 필요한 단계) |
+| Text LLM | Qwen3-8B | DECIDE, EVALUATE, UPDATE, HYPOTHESIZE (추론/판단) |
+
+VLM은 grid를 이미지로 렌더링해서 전달. 텍스트 LLM은 VLM의 결과를 텍스트로 받아서 처리.
+순차 실행 (같은 GPU에서 모델 교체) 또는 별도 포트로 동시 서빙.
+
 ## 전체 흐름
 
 ```
 Phase 1 (첫 프레임):
-  SCAN → HYPOTHESIZE → UPDATE → phase 전환
+  SCAN(VLM) → HYPOTHESIZE(LLM) → UPDATE(LLM) → phase 전환
 
 Phase 2~4 (매 스텝):
-  DECIDE → EXECUTE → OBSERVE → EVALUATE → UPDATE
+  DECIDE(LLM) → EXECUTE → OBSERVE(VLM) → EVALUATE(LLM) → UPDATE(LLM)
 ```
 
 ---
 
-## SCAN (Phase 1 전용)
+## SCAN (Phase 1 전용) — VLM 사용
 
 "여기 뭐가 있지?" — 아무것도 모르는 상태에서 전체 프레임을 처음 분석.
 
-- 입력: current frame만 (이전 프레임 없음)
-- 목적: 화면에 있는 모든 오브젝트를 처음으로 파악
-- 프롬프트 구조:
-  ```
-  STEP 1 - OBJECTS: 모든 구분 가능한 오브젝트/영역 나열
-    각각: hex 값, 색 이름, 위치(row/col 범위), 크기, 모양
-  STEP 2 - PATTERNS: 전체 구조 파악
-    사각형, 통로, 경계, 반복 패턴 등
-  ```
+- 모델: **VLM (Qwen3-VL-30B)**
+- 입력: grid를 **이미지로 렌더링**해서 전달 (64x64 hex → 512x512px 이미지)
+- 목적: 화면에 있는 모든 오브젝트를 시각적으로 파악
+- VLM이 하는 일:
+  - 이미지에서 구분 가능한 오브젝트/영역 식별
+  - 각각의 색, 위치(bounding box), 크기, 모양 기록
+  - 전체 구조 파악 (사각형, 통로, 경계, 패턴 등)
 - 하지 않는 일:
   - 판단, 의도, 액션 제안 금지
   - 뭐가 뭔지 추측 금지 (전부 type: "unknown")
-  - DIFF/CLASSIFY/CHALLENGE 없음 (비교할 프레임이 없으므로)
-- 출력: objects 딕셔너리 + patterns
+- 출력: objects 딕셔너리 (bbox 포함) + patterns
+
+왜 VLM인가:
+- 텍스트 LLM은 64x64 hex 배열에서 오브젝트를 정확히 못 뽑음
+- 위치/값 불일치, 의미없는 오브젝트 생성 문제가 반복됨
+- VLM은 이미지를 직접 보므로 형태/위치 파악이 정확
 
 ---
 
@@ -52,37 +66,37 @@ Phase 2~4 (매 스텝):
 
 ---
 
-## OBSERVE (Phase 2+ 전용)
+## OBSERVE (Phase 2+ 전용) — VLM 사용
 
-"뭐가 바뀌었지?" — 이미 오브젝트를 알고 있는 상태. 액션 실행 후 **변화만** 관찰.
+"뭐가 바뀌었지?" — 이미 오브젝트를 알고 있는 상태. 액션 실행 후 변화 관찰.
 
-- 입력: before frame + after frame + world_model(기존 objects 포함)
-- 목적: 방금 실행한 액션으로 뭐가 바뀌었는지 확인
-- 프롬프트 구조:
-  ```
-  STEP 1 - DIFF: before/after 비교
-    어떤 셀이 변했는지, 어떤 오브젝트가 움직였는지
-    사라진 것, 새로 나타난 것
-  STEP 2 - CLASSIFY: 움직인 것 = dynamic, 안 움직인 것 = static
-  STEP 3 - NEW OBJECTS: 이전에 없던 새 오브젝트가 있으면 기록
-  STEP 4 - CHALLENGE: 관찰 결과에 대한 반박
-    static으로 분류한 것이 실제로는 dynamic일 수도?
-  ```
+- 모델: **VLM (Qwen3-VL-30B)**
+- 입력: before/after **이미지 2장** + world_model + 코드가 계산한 diff 요약
+- 목적: 시각적으로 뭐가 바뀌었는지 파악 + diff 요약과 대조
+- VLM이 하는 일:
+  - before/after 이미지를 비교해서 변화를 시각적으로 식별
+  - 코드 diff 요약을 참고해서 어떤 오브젝트가 영향받았는지 판단
+  - 움직인 것 = dynamic, 안 움직인 것 = static 분류
+  - 새로 나타난 오브젝트 감지
 - 하지 않는 일:
-  - 이미 알고 있는 오브젝트를 처음부터 다시 나열
   - 전체 프레임 분석 (SCAN의 역할)
   - 판단/의도 금지
 - 출력: changes + 오브젝트 분류 업데이트 + new_objects + contradictions
+
+VLM + 코드 diff 병행 이유:
+- VLM이 시각적 변화를 직관적으로 잡고
+- 코드 diff가 정확한 셀 단위 변화를 보완
+- 둘을 함께 주면 더 정확한 관찰 가능
 
 ### SCAN vs OBSERVE 비교
 
 | | SCAN (Phase 1) | OBSERVE (Phase 2+) |
 |---|---|---|
+| **모델** | VLM | VLM |
 | **언제** | 첫 프레임, 새 레벨 시작 | 매 액션 실행 후 |
-| **입력** | current frame만 | before + after frame |
-| **초점** | 전체 오브젝트 추출 | 변화 감지 |
-| **CoT** | OBJECTS + PATTERNS | DIFF + CLASSIFY + NEW + CHALLENGE |
-| **출력** | objects 딕셔너리 | changes + 분류 업데이트 |
+| **입력** | 이미지 1장 | before/after 이미지 2장 + 코드 diff 요약 |
+| **초점** | 전체 오브젝트 추출 | 변화 감지 + 오브젝트 분류 |
+| **출력** | objects 딕셔너리 (bbox) | changes + 분류 업데이트 |
 
 ---
 
@@ -114,14 +128,15 @@ Phase 2~4 (매 스텝):
 
 ## EVALUATE
 
-- 입력: before/after frame + OBSERVE 결과 + goal + success/failure condition
+- 입력: OBSERVE 결과 + goal + success/failure condition (grid 없음)
 - 목적: 방금 실행한 액션의 결과를 평가
 - 하는 일:
-  - goal 달성 여부 판정 (success_condition / failure_condition 기준)
+  - OBSERVE가 보고한 변화를 기반으로 goal 달성 여부 판정
   - 예상 밖 변화 감지
   - 배운 것 정리 (key_learnings)
   - 새로운 발견 (discoveries) 추출
 - 하지 않는 일:
+  - grid 원본 비교 (OBSERVE가 이미 했음)
   - 다음 액션 계획 (DECIDE의 역할)
   - world_model 갱신 (UPDATE의 역할)
   - 합리화 금지 — 실패하면 실패라고 정직하게

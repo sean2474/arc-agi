@@ -7,7 +7,7 @@ def build_hypothesize_message(
     scan_result: dict,
     available_actions: list[dict],
 ) -> str:
-    from ..const import ACTION_NUM_TO_NAME
+    from ...const import ACTION_NUM_TO_NAME
     actions_names = ", ".join(ACTION_NUM_TO_NAME.get(a["value"], "?") for a in available_actions)
 
     return f"""\

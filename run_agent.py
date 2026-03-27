@@ -27,58 +27,69 @@ from agents.llm_agent import LLMAgent, StepRecord
 
 load_dotenv()
 
-_server_proc = None
+_server_procs = []
 
 
-def start_model_server(server_cfg: dict) -> None:
-    """vLLM 서버가 안 돼있으면 자동 시작."""
-    global _server_proc
-    port = server_cfg.get("port", 8080)
+def _start_vllm(model_path: str, port: int, extra_args: str = "", label: str = "model") -> None:
+    """vLLM 서버 시작. 이미 돌고 있으면 스킵."""
     api_url = f"http://localhost:{port}/v1/models"
-
-    # 이미 돌고 있는지 체크
     try:
         r = requests.get(api_url, timeout=3)
         if r.status_code == 200:
-            print(f"[OK] model server already running (port {port})")
+            print(f"[OK] {label} server already running (port {port})")
             return
     except Exception:
         pass
 
-    model_path = server_cfg.get("model_path", "./qwen3-8b")
-    extra_args = server_cfg.get("extra_args", "")
-
     cmd = f"vllm serve {model_path} --port {port} {extra_args}"
-    print(f"start model server: {cmd}")
-    _server_proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    atexit.register(_stop_server)
+    print(f"[START] {label}: {cmd}")
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    _server_procs.append(proc)
 
-    # 서버 준비 대기
-    print("  model server loading...", end="", flush=True)
-    for i in range(120):  # 최대 2분
+    print(f"  {label} loading...", end="", flush=True)
+    for i in range(180):
         time.sleep(2)
         try:
             r = requests.get(api_url, timeout=3)
             if r.status_code == 200:
-                print(f" model loading complete ({(i+1)*2}초)")
+                print(f" ready ({(i+1)*2}s)")
                 return
         except Exception:
             pass
         if i % 10 == 9:
             print(".", end="", flush=True)
 
-    print(" model loading timeout (2min)")
-    _stop_server()
+    print(f" {label} timeout")
     sys.exit(1)
 
 
-def _stop_server():
-    global _server_proc
-    if _server_proc and _server_proc.poll() is None:
-        print("  model server stopping...")
-        _server_proc.terminate()
-        _server_proc.wait(timeout=10)
-        _server_proc = None
+def start_model_servers(server_cfg: dict) -> None:
+    """Text LLM + VLM 서버 시작."""
+    atexit.register(_stop_servers)
+
+    # Text LLM
+    _start_vllm(
+        server_cfg.get("model_path", "./qwen3-8b"),
+        server_cfg.get("port", 8080),
+        server_cfg.get("extra_args", ""),
+        label="LLM",
+    )
+
+    # VLM (있으면)
+    if server_cfg.get("vlm_model_path"):
+        _start_vllm(
+            server_cfg["vlm_model_path"],
+            server_cfg.get("vlm_port", 8081),
+            server_cfg.get("vlm_extra_args", ""),
+            label="VLM",
+        )
+
+
+def _stop_servers():
+    for proc in _server_procs:
+        if proc.poll() is None:
+            proc.terminate()
+            proc.wait(timeout=10)
 
 
 def load_config(config_path: str) -> dict:
@@ -287,7 +298,7 @@ def main():
 
     # 모델 서버 자동 시작
     if "server" in cfg:
-        start_model_server(cfg["server"])
+        start_model_servers(cfg["server"])
 
     agent_cfg = cfg["agent"]
     game_cfg = cfg["game"]
@@ -305,6 +316,8 @@ def main():
         max_tokens=agent_cfg.get("max_tokens", None),
         name=agent_cfg["name"],
         api_base=agent_cfg.get("api_base", "http://localhost:8080/v1"),
+        vlm_model=agent_cfg.get("vlm_model", "qwen3-vl-30b"),
+        vlm_api_base=agent_cfg.get("vlm_api_base", "http://localhost:8081/v1"),
     )
 
     for gid in game_ids:

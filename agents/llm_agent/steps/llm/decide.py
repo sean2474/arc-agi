@@ -5,13 +5,13 @@ import random
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..agent import LLMAgent
+    from ...agent import LLMAgent
 
 from arcengine import GameAction
 
-from ..actions import action_to_gameaction
-from ..const import get_phase_hint
-from ..prompts import build_decide_message
+from ...actions import action_to_gameaction
+from ...const import get_phase_hint
+from ...prompts import build_decide_message
 
 
 def do_decide(agent: LLMAgent, observe_result: dict) -> tuple[GameAction, str, str | None, str]:

@@ -4,9 +4,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..agent import LLMAgent
+    from ...agent import LLMAgent
     
-from ..prompts import build_incident_gameover_message, build_incident_levelcomplete_message
+from ...prompts import build_incident_gameover_message, build_incident_levelcomplete_message
 
 
 def do_incident(

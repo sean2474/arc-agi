@@ -1,6 +1,11 @@
-"""그리드 변환, diff 계산, 트리거 감지."""
+"""그리드 변환, diff 계산, 이미지 렌더링, 트리거 감지."""
 
+import io
+import base64
+from collections import Counter
 from arcengine import GameState
+
+from .const import ARC_COLORS
 
 
 def frame_to_compact(frame) -> list[str]:
@@ -16,6 +21,58 @@ def compute_diff(prev: list[str], curr: list[str]) -> list[dict]:
             if prev[y][x] != curr[y][x]:
                 changes.append({"x": x, "y": y, "from": prev[y][x], "to": curr[y][x]})
     return changes
+
+
+def summarize_diff(prev: list[str], curr: list[str]) -> str:
+    """두 그리드의 diff를 텍스트 요약으로 반환."""
+    changes = compute_diff(prev, curr)
+    if not changes:
+        return "NO CHANGES."
+
+    total = len(changes)
+    xs = [c["x"] for c in changes]
+    ys = [c["y"] for c in changes]
+    region = f"rows {min(ys)}-{max(ys)}, cols {min(xs)}-{max(xs)}"
+
+    transitions = Counter(f"{c['from']}→{c['to']}" for c in changes)
+    top_transitions = ", ".join(f"{k}: {v}" for k, v in transitions.most_common(5))
+
+    cell_list = "\n".join(
+        f"  ({c['x']},{c['y']}): {c['from']}→{c['to']}" for c in changes[:20]
+    )
+    truncated = f"\n  ... and {total - 20} more" if total > 20 else ""
+
+    return f"""{total} cells changed in {region}
+Transitions: {top_transitions}
+Changed cells:
+{cell_list}{truncated}"""
+
+
+def grid_to_image_base64(grid: list[str], scale: int = 8) -> str:
+    """compact grid → base64 PNG 이미지. VLM에 전달용."""
+    from PIL import Image
+
+    size = len(grid)
+    img = Image.new("RGB", (size * scale, size * scale))
+    pixels = img.load()
+
+    hex_to_rgb = {}
+    for i, color in enumerate(ARC_COLORS):
+        r = int(color[1:3], 16)
+        g = int(color[3:5], 16)
+        b = int(color[5:7], 16)
+        hex_to_rgb[format(i, "x")] = (r, g, b)
+
+    for y, row in enumerate(grid):
+        for x, cell in enumerate(row):
+            rgb = hex_to_rgb.get(cell, (0, 0, 0))
+            for dy in range(scale):
+                for dx in range(scale):
+                    pixels[x * scale + dx, y * scale + dy] = rgb
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 def detect_triggers(
     prev_grid: list[str] | None,

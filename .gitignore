@@ -6,5 +6,6 @@ results/
 *.log
 .DS_Store
 qwen3-8b/
+qwen2.5-vl-7b/
 environment_files/
 data/

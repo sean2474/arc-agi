@@ -1,14 +1,16 @@
-"""STEP: SCAN — Phase 1 전용. 첫 프레임 전체 분석."""
+"""STEP: SCAN — Phase 1 전용. VLM으로 첫 프레임 전체 분석."""
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..agent import LLMAgent
+    from ...agent import LLMAgent
 
-from ..prompts import build_scan_message
+from ...grid_utils import grid_to_image_base64
+from ...prompts import build_scan_message
 
 
 def do_scan(agent: LLMAgent, step: int, curr_grid: list[str], curr_levels: int) -> dict:
+    img_b64 = grid_to_image_base64(curr_grid)
     msg = build_scan_message(
         game_id=agent.game_info.get("game_id", "unknown"),
         available_actions=agent.game_info.get("available_actions", []),
@@ -17,8 +19,7 @@ def do_scan(agent: LLMAgent, step: int, curr_grid: list[str], curr_levels: int) 
         step=step,
         grid=curr_grid,
     )
-    parsed = agent._call_llm(msg, label="scan")
+    parsed = agent._call_vlm(msg, [img_b64], label="scan")
     if parsed is None:
-        print(f"  [PARSE_FAIL] SCAN")
-        return {"objects": {}, "patterns": []}
+        raise RuntimeError("SCAN: VLM returned None (parse failed)")
     return parsed
