@@ -9,36 +9,54 @@ from arcengine import GameState
 from .const import ARC_COLORS
 
 
-def parse_bbox_from_obj(obj: dict) -> dict | None:
-    """VLM이 반환한 position/size 문자열 → bbox dict.
-    예: "rows 28-36, cols 30-34" → {row_min:28, row_max:36, col_min:30, col_max:34}
-    """
-    if "bbox" in obj and isinstance(obj["bbox"], dict):
-        return obj["bbox"]
-
-    pos = obj.get("position", "")
-    if not pos:
+def compute_bbox_from_grid(grid: list[str], hex_value: str) -> dict | None:
+    """그리드에서 특정 색상(hex) 셀의 bounding box 계산."""
+    rows, cols = [], []
+    for y, row in enumerate(grid):
+        for x, cell in enumerate(row):
+            if cell == hex_value:
+                rows.append(y)
+                cols.append(x)
+    if not rows:
         return None
-
-    nums = re.findall(r"\d+", pos)
-    if len(nums) >= 4:
-        return {"row_min": int(nums[0]), "row_max": int(nums[1]),
-                "col_min": int(nums[2]), "col_max": int(nums[3])}
-    if len(nums) == 2:
-        return {"row_min": int(nums[0]), "row_max": int(nums[0]),
-                "col_min": int(nums[1]), "col_max": int(nums[1])}
-    return None
+    return {"row_min": min(rows), "row_max": max(rows),
+            "col_min": min(cols), "col_max": max(cols)}
 
 
-def enrich_objects_bbox(objects: dict) -> dict:
-    """scan/observe 결과 objects에 bbox 없으면 position 문자열로 채워넣기."""
+def enrich_objects_bbox(objects: dict, grid: list[str] | None = None) -> dict:
+    """scan/observe 결과 objects에 bbox 보장.
+    position이 "n,n" (단일 좌표) 형태일 때만 bbox 계산.
+    "n-n,n-n" (범위) 형태는 건너뜀 (넓은 영역은 아웃라인 불필요).
+    """
     for obj in objects.values():
         if not isinstance(obj, dict):
             continue
-        if "bbox" not in obj or not obj["bbox"]:
-            bbox = parse_bbox_from_obj(obj)
-            if bbox:
-                obj["bbox"] = bbox
+        if obj.get("bbox") and isinstance(obj["bbox"], dict):
+            continue
+
+        pos = obj.get("position", "")
+
+        # 범위 형태(n-n)는 건너뜀
+        if "-" in pos:
+            continue
+
+        bbox = None
+
+        # grid + value로 직접 계산
+        if grid is not None:
+            val = obj.get("value", "")
+            if val and len(val) == 1:
+                bbox = compute_bbox_from_grid(grid, val)
+
+        # fallback: "n,n" 또는 "(n,n)" 파싱
+        if bbox is None and pos:
+            nums = re.findall(r"\d+", pos)
+            if len(nums) == 2:
+                bbox = {"row_min": int(nums[0]), "row_max": int(nums[0]),
+                        "col_min": int(nums[1]), "col_max": int(nums[1])}
+
+        if bbox:
+            obj["bbox"] = bbox
     return objects
 
 

@@ -136,10 +136,10 @@ class LLMAgent:
             print(f"  [SCAN]")
             scan_result = do_scan(self, step, curr_grid, curr_levels)
 
-            # objects merge (position 문자열 → bbox 변환 포함)
+            # objects merge (grid 스캔으로 bbox 계산 포함)
             scan_objects = scan_result.get("objects", {})
             if scan_objects and isinstance(scan_objects, dict):
-                enrich_objects_bbox(scan_objects)
+                enrich_objects_bbox(scan_objects, curr_grid)
                 self.world_model.merge_objects(scan_objects)
 
             # HYPOTHESIZE
