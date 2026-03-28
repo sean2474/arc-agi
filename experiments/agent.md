@@ -17,21 +17,20 @@
 
 | 역할 | 모델 | 용도 |
 |------|------|------|
-| VLM | Qwen2.5-VL-7B | SCAN, OBSERVE (시각 분석) |
-| Text LLM | Qwen3-8B | HYPOTHESIZE, DECIDE, EVALUATE, UPDATE (추론/판단) |
+| VLM | Qwen2.5-VL-7B | 전체 단계 (SCAN, OBSERVE, HYPOTHESIZE, DECIDE, EVALUATE, UPDATE) |
 
-VLM은 grid를 이미지로 렌더링해서 전달.
-텍스트 LLM은 VLM의 결과를 텍스트로 받아서 처리.
+단일 VLM으로 전체 단계 처리. SCAN/OBSERVE는 이미지 + 텍스트 입력, 나머지는 텍스트만.
+32GB VRAM 제약으로 단일 모델 사용.
 
 ## 사이클 구조
 
 ```
 Phase 1 (static_observation):
-  SCAN(VLM) → HYPOTHESIZE(LLM) → UPDATE(LLM) → phase 전환
+  SCAN(VLM+이미지) → HYPOTHESIZE(VLM) → UPDATE(VLM) → phase 전환
   DECIDE/EXECUTE 없음.
 
 Phase 2~4:
-  DECIDE(LLM) → EXECUTE → OBSERVE(VLM) → EVALUATE(LLM) → UPDATE(LLM)
+  DECIDE(VLM) → EXECUTE → OBSERVE(VLM+이미지) → EVALUATE(VLM) → UPDATE(VLM)
 ```
 
 자세한 설명은 thinking_process.md 참고.
@@ -40,14 +39,14 @@ Phase 2~4:
 
 | Phase | 순서 | 호출 | 모델 | 역할 |
 |-------|------|------|------|------|
-| **Phase 1** | 1 | SCAN | VLM | 이미지로 전체 프레임 분석. objects + bbox 추출. |
-| **Phase 1** | 2 | HYPOTHESIZE | LLM | 초기 가설 수립. 오브젝트 역할/게임타입/목표 추측. |
-| **Phase 1** | 3 | UPDATE | LLM | objects + 가설을 world_model에 저장. |
-| **Phase 2~4** | 1 | DECIDE | LLM | 1개 액션 결정. world_model 기반. |
+| **Phase 1** | 1 | SCAN | VLM+이미지 | 이미지로 전체 프레임 분석. objects + bbox 추출. |
+| **Phase 1** | 2 | HYPOTHESIZE | VLM | 초기 가설 수립. 오브젝트 역할/게임타입/목표 추측. |
+| **Phase 1** | 3 | UPDATE | VLM | objects + 가설을 world_model에 저장. |
+| **Phase 2~4** | 1 | DECIDE | VLM | 1개 액션 결정. world_model 기반. |
 | **Phase 2~4** | 2 | (EXECUTE) | 코드 | env.step(action) 실행. |
-| **Phase 2~4** | 3 | OBSERVE | VLM | before/after 이미지 비교 + 코드 diff 요약. |
-| **Phase 2~4** | 4 | EVALUATE | LLM | OBSERVE 결과로 목표 달성 여부 판정. (grid 없음) |
-| **Phase 2~4** | 5 | UPDATE | LLM | world_model 갱신. confidence 조정. (grid 없음) |
+| **Phase 2~4** | 3 | OBSERVE | VLM+이미지 | before/after 이미지 비교 + 코드 diff 요약. |
+| **Phase 2~4** | 4 | EVALUATE | VLM | OBSERVE 결과로 목표 달성 여부 판정. |
+| **Phase 2~4** | 5 | UPDATE | VLM | world_model 갱신. confidence 조정. |
 
 ## DECIDE
 

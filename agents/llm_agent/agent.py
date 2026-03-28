@@ -31,18 +31,14 @@ class LLMAgent:
 
     def __init__(
         self,
-        model: str = "qwen3-8b",
+        model: str = "qwen2.5-vl-7b",
         max_tokens: int | None = None,
-        name: str = "qwen3_v0",
+        name: str = "qwen_vl_v0",
         api_base: str = "http://localhost:8080/v1",
-        vlm_model: str = "qwen3-vl-30b",
-        vlm_api_base: str = "http://localhost:8081/v1",
     ):
         import openai
         self.client = openai.OpenAI(base_url=api_base, api_key="local")
-        self.vlm_client = openai.OpenAI(base_url=vlm_api_base, api_key="local")
         self.model = model
-        self.vlm_model = vlm_model
         self.max_tokens = max_tokens
         self.name = name
 
@@ -71,62 +67,28 @@ class LLMAgent:
         self.available_values = {a["value"] for a in game_info["available_actions"]}
         self.world_model.init_actions(game_info["available_actions"])
 
-    # ── VLM 호출 래퍼 (이미지 입력) ──
+    # ── 모델 호출 래퍼 ──
 
-    def _call_vlm(self, text: str, images_b64: list[str], retries: int = 3, label: str = "") -> dict | None:
-        """VLM 호출. 이미지 + 텍스트 → JSON 응답."""
+    def _call_vlm(self, text: str, images_b64: list[str] = [], retries: int = 3, label: str = "") -> dict | None:
+        """VLM 호출. images_b64가 비어있으면 텍스트만 전달."""
         if label:
             self._step_prompts[label] = text
-        content = []
-        for img in images_b64:
-            content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}})
-        content.append({"type": "text", "text": text})
 
-        for attempt in range(retries):
-            try:
-                response = self.vlm_client.chat.completions.create(
-                    model=self.vlm_model,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": content},
-                    ],
-                )
-                self.llm_call_count += 1
-                usage = response.usage
-                if usage:
-                    self.total_input_tokens += usage.prompt_tokens or 0
-                    self.total_output_tokens += usage.completion_tokens or 0
-                raw_text = response.choices[0].message.content
+        if images_b64:
+            content = []
+            for img in images_b64:
+                content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}})
+            content.append({"type": "text", "text": text})
+        else:
+            content = text
 
-                if label:
-                    self._step_responses[label] = raw_text
-
-                parsed = parse_llm_response(raw_text)
-                if parsed is None:
-                    print(f"  [PARSE_FAIL] VLM raw (first 500):")
-                    print(f"  {repr(raw_text[:500])}")
-                return parsed
-            except KeyboardInterrupt:
-                raise
-            except Exception as e:
-                wait = 2 ** attempt * 5
-                print(f"  [VLM_ERR] {e}, retry in {wait}s ({attempt+1}/{retries})")
-                time.sleep(wait)
-        print(f"  [VLM_FAIL] after {retries} retries")
-        return None
-
-    # ── LLM 호출 래퍼 (텍스트만) ──
-
-    def _call_llm(self, user_msg: str, retries: int = 3, label: str = "") -> dict | None:
-        if label:
-            self._step_prompts[label] = user_msg
         for attempt in range(retries):
             try:
                 kwargs = {
                     "model": self.model,
                     "messages": [
                         {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": user_msg},
+                        {"role": "user", "content": content},
                     ],
                 }
                 if self.max_tokens is not None:
@@ -151,9 +113,9 @@ class LLMAgent:
                 raise
             except Exception as e:
                 wait = 2 ** attempt * 5
-                print(f"  [API_ERR] {e}, retry in {wait}s ({attempt+1}/{retries})")
+                print(f"  [ERR] {e}, retry in {wait}s ({attempt+1}/{retries})")
                 time.sleep(wait)
-        print(f"  [API_FAIL] after {retries} retries")
+        print(f"  [FAIL] after {retries} retries")
         return None
 
     # ── 메인 인터페이스 ──

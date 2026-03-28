@@ -67,22 +67,12 @@ def start_model_servers(server_cfg: dict) -> None:
     """Text LLM + VLM 서버 시작."""
     atexit.register(_stop_servers)
 
-    # Text LLM
     _start_vllm(
-        server_cfg.get("model_path", "./qwen3-8b"),
+        server_cfg.get("model_path", "./qwen2.5-vl-7b"),
         server_cfg.get("port", 8080),
         server_cfg.get("extra_args", ""),
-        label="LLM",
+        label="VLM",
     )
-
-    # VLM (있으면)
-    if server_cfg.get("vlm_model_path"):
-        _start_vllm(
-            server_cfg["vlm_model_path"],
-            server_cfg.get("vlm_port", 8081),
-            server_cfg.get("vlm_extra_args", ""),
-            label="VLM",
-        )
 
 
 def _stop_servers():
@@ -316,8 +306,6 @@ def main():
         max_tokens=agent_cfg.get("max_tokens", None),
         name=agent_cfg["name"],
         api_base=agent_cfg.get("api_base", "http://localhost:8080/v1"),
-        vlm_model=agent_cfg.get("vlm_model", "qwen3-vl-30b"),
-        vlm_api_base=agent_cfg.get("vlm_api_base", "http://localhost:8081/v1"),
     )
 
     for gid in game_ids:

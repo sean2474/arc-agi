@@ -13,7 +13,7 @@ def do_hypothesize(agent: LLMAgent, scan_result: dict) -> dict:
         scan_result=scan_result,
         available_actions=agent.game_info.get("available_actions", []),
     )
-    parsed = agent._call_llm(msg, label="hypothesize")
+    parsed = agent._call_vlm(msg, label="hypothesize")
     if parsed is None:
         print(f"  [PARSE_FAIL] HYPOTHESIZE")
         return {}

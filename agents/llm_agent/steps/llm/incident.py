@@ -34,7 +34,7 @@ def do_incident(
     else:
         return None
 
-    parsed = agent._call_llm(msg, label="incident")
+    parsed = agent._call_vlm(msg, label="incident")
     if parsed is None:
         print(f"  [PARSE_FAIL] INCIDENT")
         return None

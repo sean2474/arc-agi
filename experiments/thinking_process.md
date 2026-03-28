@@ -2,24 +2,22 @@
 
 ## 모델 구성
 
-두 개의 모델을 사용하는 하이브리드 구조.
+단일 VLM 구조 (32GB VRAM 제약).
 
 | 역할 | 모델 | 용도 |
 |------|------|------|
-| VLM | Qwen2.5-VL-7B | SCAN, OBSERVE (시각 분석이 필요한 단계) |
-| Text LLM | Qwen3-8B | DECIDE, EVALUATE, UPDATE, HYPOTHESIZE (추론/판단) |
+| VLM | Qwen2.5-VL-7B | 전체 단계. SCAN/OBSERVE는 이미지+텍스트, 나머지는 텍스트만. |
 
-VLM은 grid를 이미지로 렌더링해서 전달. 텍스트 LLM은 VLM의 결과를 텍스트로 받아서 처리.
-순차 실행 (같은 GPU에서 모델 교체) 또는 별도 포트로 동시 서빙.
+VLM은 이미지도, 텍스트만도 처리 가능. SCAN/OBSERVE에 이미지 추가 전달.
 
 ## 전체 흐름
 
 ```
 Phase 1 (첫 프레임):
-  SCAN(VLM) → HYPOTHESIZE(LLM) → UPDATE(LLM) → phase 전환
+  SCAN(VLM+이미지) → HYPOTHESIZE(VLM) → UPDATE(VLM) → phase 전환
 
 Phase 2~4 (매 스텝):
-  DECIDE(LLM) → EXECUTE → OBSERVE(VLM) → EVALUATE(LLM) → UPDATE(LLM)
+  DECIDE(VLM) → EXECUTE → OBSERVE(VLM+이미지) → EVALUATE(VLM) → UPDATE(VLM)
 ```
 
 ---
