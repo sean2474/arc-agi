@@ -231,7 +231,10 @@ class WorldModel:
         return self._data["plans"]
 
     def add_plan(self, description: str, priority: int = 99, confidence: float = 0.5, rationale: str = ""):
-        """새 plan 추가 (pending 상태)."""
+        """새 plan 추가 (pending 상태). 동일 description 이미 있으면 스킵."""
+        desc_norm = description.strip().lower()
+        if any(p.get("description", "").strip().lower() == desc_norm for p in self._data["plans"]):
+            return
         self._data["plans"].append({
             "description": description,
             "priority": priority,
@@ -292,7 +295,12 @@ class WorldModel:
                         self._data["actions"][name].update(action_data)
 
         if "objects" in updated_wm:
-            self.merge_objects(updated_wm["objects"])
+            raw_objs = updated_wm["objects"]
+            if isinstance(raw_objs, dict):
+                # obj_NNN 키 형식만 허용 — LLM이 name-keyed 오브젝트 삽입 차단
+                filtered = {k: v for k, v in raw_objs.items() if k.startswith("obj_")}
+                if filtered:
+                    self.merge_objects(filtered)
 
         if "goal_hypotheses" in updated_wm:
             self.set_goal_hypotheses(updated_wm["goal_hypotheses"])

@@ -5,12 +5,12 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..agent import LLMAgent
 
-from ..grid_utils import grid_to_image_base64
+from ..grid_utils import grid_to_image_base64_with_coords, enrich_objects_bbox
 from ..prompts import build_scan_message
 
 
 def do_scan(agent: LLMAgent, step: int, curr_grid: list[str], curr_levels: int) -> dict:
-    img_b64 = grid_to_image_base64(curr_grid)
+    img_b64 = grid_to_image_base64_with_coords(curr_grid)
     msg = build_scan_message(
         game_id=agent.game_info.get("game_id", "unknown"),
         available_actions=agent.game_info.get("available_actions", []),

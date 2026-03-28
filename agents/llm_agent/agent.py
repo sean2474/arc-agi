@@ -308,12 +308,10 @@ class LLMAgent:
             action_name = raw_action
 
         if result is None:
-            from arcengine import GameAction
-            result = (GameAction.ACTION1, "up", {})
-            action_name = "up"
+            raise RuntimeError(f"Cannot resolve action {raw_action!r} — check DECIDE output and object names")
         action, action_name, self.last_action_data = result
 
-        self.last_action = raw_action
+        self.last_action = action_name
 
         record = StepRecord(
             step=step, action=str(action_name), state=curr_state.value,

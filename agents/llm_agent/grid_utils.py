@@ -9,6 +9,15 @@ from arcengine import GameState
 from .const import ARC_COLORS
 
 
+def _hex_to_arc_index(hex_str: str) -> str | None:
+    """'4FCC30' or '#4FCC30' → ARC index char ('e'). 매치 없으면 None."""
+    norm = hex_str.strip().lstrip("#").upper()
+    for i, c in enumerate(ARC_COLORS):
+        if c.lstrip("#").upper() == norm:
+            return format(i, "x")
+    return None
+
+
 def compute_bbox_from_grid(grid: list[str], hex_value: str) -> dict | None:
     """그리드에서 특정 색상(hex) 셀의 bounding box 계산."""
     rows, cols = [], []
@@ -55,12 +64,39 @@ def enrich_objects_bbox(objects: dict, grid: list[str] | None = None) -> dict:
                     "col_min": col, "col_max": col}
 
         if bbox:
-            obj["bbox"] = {
+            # 범위 벗어난 좌표 체크
+            if bbox["col_min"] > max_col or bbox["row_min"] > max_row:
+                raise RuntimeError(
+                    f"Object '{obj.get('name')}' position out of bounds: "
+                    f"row={bbox['row_min']}, col={bbox['col_min']} (grid {max_row+1}x{max_col+1})"
+                )
+            clamped = {
                 "row_min": max(0, bbox["row_min"]),
                 "row_max": min(max_row, bbox["row_max"]),
                 "col_min": max(0, bbox["col_min"]),
                 "col_max": min(max_col, bbox["col_max"]),
             }
+            if clamped["col_min"] > clamped["col_max"] or clamped["row_min"] > clamped["row_max"]:
+                raise RuntimeError(
+                    f"Object '{obj.get('name')}' bbox inverted after clamp: {clamped}"
+                )
+            obj["bbox"] = clamped
+
+            # 색상 검증: bbox 영역에 해당 색상 없으면 에러
+            if grid:
+                colors = obj.get("colors", [])
+                arc_indices = {idx for c in colors if (idx := _hex_to_arc_index(c)) is not None}
+                if arc_indices:
+                    b = clamped
+                    found = any(
+                        grid[r][c] in arc_indices
+                        for r in range(b["row_min"], b["row_max"] + 1)
+                        for c in range(b["col_min"], b["col_max"] + 1)
+                    )
+                    if not found:
+                        raise RuntimeError(
+                            f"Object '{obj.get('name')}' colors {colors} not found in bbox {clamped}"
+                        )
     return objects
 
 
@@ -138,6 +174,31 @@ def _img_to_base64(img) -> str:
 def grid_to_image_base64(grid: list[str], scale: int = 8) -> str:
     """compact grid → base64 PNG 이미지. VLM에 전달용."""
     return _img_to_base64(_render_grid(grid, scale))
+
+
+def grid_to_image_base64_with_coords(grid: list[str], scale: int = 8, every: int = 8) -> str:
+    """SCAN용: row/col 좌표 레이블 오버레이. every 셀마다 번호 표시."""
+    from PIL import ImageDraw
+
+    img = _render_grid(grid, scale)
+    draw = ImageDraw.Draw(img)
+    rows = len(grid)
+    cols = len(grid[0]) if grid else 0
+
+    label_color = (255, 255, 0)  # yellow
+    bg_color = (0, 0, 0, 180)
+
+    for r in range(0, rows, every):
+        y = r * scale
+        draw.rectangle([0, y, scale - 1, y + scale - 1], fill=(0, 0, 0))
+        draw.text((1, y + 1), str(r), fill=label_color)
+
+    for c in range(0, cols, every):
+        x = c * scale
+        draw.rectangle([x, 0, x + scale - 1, scale - 1], fill=(0, 0, 0))
+        draw.text((x + 1, 1), str(c), fill=label_color)
+
+    return _img_to_base64(img)
 
 
 _ANNOTATION_COLORS = [
