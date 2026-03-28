@@ -5,14 +5,19 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ...agent import LLMAgent
 
-from ...grid_utils import grid_to_image_base64, summarize_diff
+from ...grid_utils import grid_to_image_base64, grid_to_image_base64_annotated, summarize_diff
 from ...prompts import build_observe_message
 
 
 def do_observe(agent: LLMAgent, action_taken: str, goal: str, prev_grid: list[str], curr_grid: list[str]) -> dict:
     diff_summary = summarize_diff(prev_grid, curr_grid)
-    before_img = grid_to_image_base64(prev_grid)
-    after_img = grid_to_image_base64(curr_grid)
+    objects = agent.world_model.get_objects()
+    if objects:
+        before_img = grid_to_image_base64_annotated(prev_grid, objects)
+        after_img = grid_to_image_base64_annotated(curr_grid, objects)
+    else:
+        before_img = grid_to_image_base64(prev_grid)
+        after_img = grid_to_image_base64(curr_grid)
 
     msg = build_observe_message(
         world_model=agent.world_model.to_dict(),

@@ -48,8 +48,8 @@ Changed cells:
 {cell_list}{truncated}"""
 
 
-def grid_to_image_base64(grid: list[str], scale: int = 8) -> str:
-    """compact grid → base64 PNG 이미지. VLM에 전달용."""
+def _render_grid(grid: list[str], scale: int = 8):
+    """compact grid → PIL Image."""
     from PIL import Image
 
     size = len(grid)
@@ -70,9 +70,58 @@ def grid_to_image_base64(grid: list[str], scale: int = 8) -> str:
                 for dx in range(scale):
                     pixels[x * scale + dx, y * scale + dy] = rgb
 
+    return img
+
+
+def _img_to_base64(img) -> str:
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode("utf-8")
+
+
+def grid_to_image_base64(grid: list[str], scale: int = 8) -> str:
+    """compact grid → base64 PNG 이미지. VLM에 전달용."""
+    return _img_to_base64(_render_grid(grid, scale))
+
+
+_ANNOTATION_COLORS = [
+    "#FFFFFF", "#FFFF00", "#FF00FF", "#00FFFF",
+    "#FF8800", "#00FF88", "#FF4444", "#44FF44",
+]
+
+
+def grid_to_image_base64_annotated(grid: list[str], objects: dict, scale: int = 8) -> str:
+    """compact grid → base64 PNG with bbox outlines + labels for each object."""
+    from PIL import ImageDraw
+
+    img = _render_grid(grid, scale)
+    draw = ImageDraw.Draw(img)
+
+    for i, (obj_id, obj) in enumerate(objects.items()):
+        if not isinstance(obj, dict):
+            continue
+        bbox = obj.get("bbox")
+        if not bbox:
+            continue
+
+        row_min = bbox.get("row_min", 0)
+        row_max = bbox.get("row_max", row_min)
+        col_min = bbox.get("col_min", 0)
+        col_max = bbox.get("col_max", col_min)
+
+        x0 = col_min * scale
+        y0 = row_min * scale
+        x1 = (col_max + 1) * scale - 1
+        y1 = (row_max + 1) * scale - 1
+
+        color = _ANNOTATION_COLORS[i % len(_ANNOTATION_COLORS)]
+        draw.rectangle([x0, y0, x1, y1], outline=color, width=2)
+
+        type_hyp = obj.get("type_hypothesis", "")
+        label = obj_id if (not type_hyp or type_hyp == "unknown") else f"{obj_id}:{type_hyp}"
+        draw.text((x0 + 2, y0 + 2), label, fill=color)
+
+    return _img_to_base64(img)
 
 def detect_triggers(
     prev_grid: list[str] | None,
