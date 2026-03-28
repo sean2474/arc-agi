@@ -134,7 +134,7 @@ function drawGrid(grid, worldModel) {
       ctx.lineWidth = 1.5;
       ctx.strokeRect(x, y, w, h);
       ctx.fillStyle = '#000000aa';
-      const label = `${id}`;
+      const label = obj.name ? `${obj.name}` : `${id}`;
       const tw = ctx.measureText(label).width + 4;
       ctx.fillRect(x, y - 11, tw, 11);
       ctx.fillStyle = color;
@@ -199,7 +199,7 @@ function showStep(idx) {
     html += `<div class="info-content" style="font-size:12px;">`;
     html += `phase: ${esc(wm.phase || '?')}\n`;
     if (wm.objects && Object.keys(wm.objects).length) {
-      html += `objects: ${Object.keys(wm.objects).join(', ')}\n`;
+      html += `objects: ${Object.values(wm.objects).map(o => o.name || o.instance_id).join(', ')}\n`;
     }
     if (wm.controllable && wm.controllable.description) {
       html += `controllable: ${esc(wm.controllable.description)} (${wm.controllable.confidence})\n`;

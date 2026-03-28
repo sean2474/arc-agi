@@ -27,8 +27,10 @@ def enrich_objects_bbox(objects: dict, grid: list[str] | None = None) -> dict:
     """scan/observe 결과 objects에 bbox 보장.
     1순위: position "row,col" + size "HxW" → bbox 계산
     2순위: grid + value로 직접 스캔 (fallback)
-    "n-n,n-n" 범위 형태는 건너뜀.
+    계산된 bbox는 실제 그리드 크기에 맞게 클램핑.
     """
+    max_row = len(grid) - 1 if grid else 63
+    max_col = len(grid[0]) - 1 if grid else 63
     for obj in objects.values():
         if not isinstance(obj, dict):
             continue
@@ -53,7 +55,12 @@ def enrich_objects_bbox(objects: dict, grid: list[str] | None = None) -> dict:
                     "col_min": col, "col_max": col}
 
         if bbox:
-            obj["bbox"] = bbox
+            obj["bbox"] = {
+                "row_min": max(0, bbox["row_min"]),
+                "row_max": min(max_row, bbox["row_max"]),
+                "col_min": max(0, bbox["col_min"]),
+                "col_max": min(max_col, bbox["col_max"]),
+            }
     return objects
 
 
@@ -166,8 +173,9 @@ def grid_to_image_base64_annotated(grid: list[str], objects: dict, scale: int = 
         color = _ANNOTATION_COLORS[i % len(_ANNOTATION_COLORS)]
         draw.rectangle([x0, y0, x1, y1], outline=color, width=2)
 
+        display_name = obj.get("name") or obj_id
         type_hyp = obj.get("type_hypothesis", "")
-        label = obj_id if (not type_hyp or type_hyp == "unknown") else f"{obj_id}:{type_hyp}"
+        label = display_name if (not type_hyp or type_hyp == "unknown") else f"{display_name}:{type_hyp}"
         draw.text((x0 + 2, y0 + 2), label, fill=color)
 
     return _img_to_base64(img)

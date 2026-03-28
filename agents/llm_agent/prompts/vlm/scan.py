@@ -16,12 +16,15 @@ def build_scan_message(
     step: int,
     grid: list[str],
 ) -> str:
+    rows = len(grid)
+    cols = len(grid[0]) if grid else 0
     return f"""\
 GAME INFO
   game_id: {game_id}
   available_actions: [{_actions_as_names(available_actions)}]
   levels_completed: {levels_completed} / {win_levels}
   step: {step}
+  grid_size: {rows}x{cols} (rows x cols, 0-indexed: row 0~{rows-1}, col 0~{cols-1})
 
 CURRENT FRAME
 {chr(10).join(grid)}
@@ -55,9 +58,10 @@ Field rules:
   If role is unknown, use "unknown_N" (e.g. "unknown_1").
 - "shape": visual shape only.
 - "colors": list of hex color values that make up this object. Single-color objects have 1 element.
-- "position": "row,col" top-left corner, 0-indexed.
-- "size": "HxW" in cells. Example: position "10,32" size "3x4" = rows 10-12, cols 32-35.
+- "position": "row,col" top-left corner, 0-indexed. MUST be within grid bounds.
+- "size": "HxW" in cells. position+size MUST NOT exceed grid bounds ({rows}x{cols}).
 
 Rules:
 - Do NOT suggest actions. Do NOT plan. Analyze ONLY.
-- List ALL distinguishable objects, even background."""
+- List ALL distinguishable objects, even background.
+- Group objects of the same game role into ONE entry unless they are clearly separate game elements (e.g. multiple independent enemies). Do NOT split one wall/terrain into many pieces — use the bounding box of the entire region."""
