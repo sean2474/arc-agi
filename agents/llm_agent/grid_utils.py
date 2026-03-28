@@ -167,8 +167,8 @@ def grid_to_image_base64_annotated(grid: list[str], objects: dict, scale: int = 
 
         x0 = col_min * scale
         y0 = row_min * scale
-        x1 = (col_max + 1) * scale - 1
-        y1 = (row_max + 1) * scale - 1
+        x1 = max(x0, (col_max + 1) * scale - 1)
+        y1 = max(y0, (row_max + 1) * scale - 1)
 
         color = _ANNOTATION_COLORS[i % len(_ANNOTATION_COLORS)]
         draw.rectangle([x0, y0, x1, y1], outline=color, width=2)
