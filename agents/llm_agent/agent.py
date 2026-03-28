@@ -71,7 +71,7 @@ class LLMAgent:
 
     # ── 모델 호출 래퍼 ──
 
-    def _call_vlm(self, text: str, images_b64: list[str] = [], retries: int = 3, label: str = "", max_tokens: int = 8192) -> dict | None:
+    def _call_vlm(self, text: str, images_b64: list[str] = [], retries: int = 3, label: str = "", max_tokens: int = 16384) -> dict | None:
         """VLM 호출. images_b64가 비어있으면 텍스트만 전달."""
         if label:
             self._step_prompts[label] = text
