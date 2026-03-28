@@ -25,7 +25,7 @@ def parse_llm_response(text: str) -> dict | None:
         return None
 
     # 1. 코드블록 안의 JSON 추출 (```json ... ``` 또는 ``` ... ```)
-    code_block = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", text)
+    code_block = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", text)
     if code_block:
         try:
             return json.loads(_strip_json_comments(code_block.group(1)))
