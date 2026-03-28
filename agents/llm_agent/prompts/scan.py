@@ -62,5 +62,5 @@ Field rules:
 Rules:
 - Do NOT suggest actions. Do NOT plan. Analyze ONLY.
 - List ALL distinguishable objects, even background.
-- CRITICAL: If multiple regions share the same game role (same color + function), merge them into ONE entry with the bounding box covering all of them. Do NOT list each piece separately.
+- Group objects of the same game role into ONE entry unless they are clearly separate game elements. Do NOT split one wall/terrain into many pieces — use the bounding box of the entire region.
 - Objects at the extreme corners or edges of the screen are almost certainly HUD elements (step counter, score, timer) — NOT interactive game objects. Name them "step_counter", "score", or "hud" and mark type_hypothesis as "hud". Do NOT include them as targets for game actions."""
