@@ -14,7 +14,6 @@ def build_scan_message(
     levels_completed: int,
     win_levels: int,
     step: int,
-    grid: list[str],
 ) -> str:
     return f"""\
 GAME INFO
@@ -23,10 +22,8 @@ GAME INFO
   levels_completed: {levels_completed} / {win_levels}
   step: {step}
 
-CURRENT FRAME
-{chr(10).join(grid)}
-
-This is the first frame. Analyze everything on screen.
+The image above is the first frame (64x64 grid, each cell is one pixel color).
+Analyze everything visible in the image.
 
 STEP 1 - OBJECTS: List every distinguishable object/region.
   For each: hex value, color name, position (row/col range), size, shape.
@@ -38,7 +35,11 @@ STEP 2 - PATTERNS: What structures do you see?
 Respond in JSON:
 {{
   "objects": {{
-    "name": {{"value": "...", "position": "...", "size": "..."}}
+    "name": {{
+      "value": "hex digit (0-f)",
+      "bbox": {{"row_min": 0, "row_max": 0, "col_min": 0, "col_max": 0}},
+      "type_hypothesis": "unknown"
+    }}
   }},
   "patterns": []
 }}
