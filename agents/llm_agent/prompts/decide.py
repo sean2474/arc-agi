@@ -45,4 +45,4 @@ Rules:
 - reasoning: MUST include current positions of key objects and why you chose this path.
 - Do NOT include game goals or win conditions — only focus on achieving the current subgoal.
 - If the subgoal requires clicking: ["click", "obj_id"] counts as one action.
-- EFFICIENCY IS CRITICAL. Scoring is (human_baseline / your_actions)^2. Twice the actions = 1/4 the score. Use the minimum actions needed. Do NOT add exploratory or redundant actions."""
+"""

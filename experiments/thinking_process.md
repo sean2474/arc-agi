@@ -36,13 +36,17 @@ Phase 2~4 (매 스텝):
 - 하지 않는 일:
   - 판단, 의도, 액션 제안 금지
   - 뭐가 뭔지 추측 금지 (전부 type: "unknown")
-- 출력: objects 딕셔너리 (position + value) + patterns
-- 후처리: 코드가 `value`(색상)로 그리드를 직접 스캔해 bbox 계산 (단일 좌표 오브젝트만)
+- 출력: objects **배열** (LLM이 list로 반환) + patterns
+  - 코드가 `obj_001`, `obj_002`... 키를 자동 부여 (LLM이 ID 관리 불필요)
+- 후처리: 코드가 position/size로 bbox 계산
+- **HUD 감지**: 화면 극단 모서리/가장자리 오브젝트는 거의 확실히 HUD (step_counter, score). LLM이 `name: step_counter/score/hud`로 표기. 게임 액션 대상 아님.
 
 왜 VLM인가:
 - 텍스트 LLM은 64x64 hex 배열에서 오브젝트를 정확히 못 뽑음
 - 위치/값 불일치, 의미없는 오브젝트 생성 문제가 반복됨
 - VLM은 이미지를 직접 보므로 형태/위치 파악이 정확
+
+**VLM 호출 설정**: max_tokens=16384 기본값. Qwen2.5-VL thinking mode가 ~7000토큰 소비 후 JSON 생성하므로 충분한 여유 필요.
 
 ---
 
@@ -67,7 +71,7 @@ Phase 2~4 (매 스텝):
 
 ---
 
-## OBSERVE (Phase 2+ 전용) — VLM 사용
+## OBSERVE (Phase 2+) — VLM 사용
 
 "뭐가 바뀌었지?" — 이미 오브젝트를 알고 있는 상태. 액션 실행 후 변화 관찰.
 
@@ -92,15 +96,53 @@ VLM + 코드 diff 병행 이유:
 - 코드 diff가 정확한 셀 단위 변화를 보완
 - 둘을 함께 주면 더 정확한 관찰 가능
 
-### SCAN vs OBSERVE 비교
+---
 
-| | SCAN (Phase 1) | OBSERVE (Phase 2+) |
-|---|---|---|
-| **모델** | VLM | VLM |
-| **언제** | 첫 프레임, 새 레벨 시작 | 매 액션 실행 후 |
-| **입력** | 이미지 1장 | before/after 이미지 2장 + 코드 diff 요약 |
-| **초점** | 전체 오브젝트 추출 | 변화 감지 + 오브젝트 분류 |
-| **출력** | objects 딕셔너리 (bbox) | changes + 분류 업데이트 |
+---
+
+## 색상 팔레트 (공식 ARC-AGI-3)
+
+| hex | index | 색상 |
+|-----|-------|------|
+| 0 | 0 | white |
+| 1 | 1 | off-white |
+| 2 | 2 | light-gray |
+| 3 | 3 | gray |
+| 4 | 4 | dark-gray |
+| 5 | 5 | black |
+| 6 | 6 | magenta |
+| 7 | 7 | pink |
+| 8 | 8 | red |
+| 9 | 9 | blue |
+| a | 10 | light-blue |
+| b | 11 | yellow |
+| c | 12 | orange |
+| d | 13 | maroon |
+| e | 14 | green |
+| f | 15 | purple |
+
+---
+
+## 액션 매핑
+
+| 번호 | 이름 | 설명 |
+|------|------|------|
+| 1 | up | |
+| 2 | down | |
+| 3 | left | |
+| 4 | right | |
+| 5 | interact | INTERACT/SELECT (게임마다 다름: select/rotate/attach/execute 등) |
+| 6 | click | x,y 좌표 필요 (0-63). `["click", obj_id]` 또는 `["click", x, y]` |
+| 7 | undo | undo |
+
+---
+
+## RHAE 점수 방식
+
+`score = (human_baseline / ai_actions)^2` per level, weighted by level index.
+- 액션 2배 → 점수 1/4. **매 액션이 치명적**.
+- LLM 호출은 액션으로 카운트 안 됨 → VLM 추론 비용 없음.
+- 나중 레벨(index 높을수록) 가중치 높음.
 
 ---
 
