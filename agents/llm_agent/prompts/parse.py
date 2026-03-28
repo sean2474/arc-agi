@@ -23,7 +23,7 @@ def parse_llm_response(text: str) -> dict | None:
     code_block = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", text)
     if code_block:
         try:
-            return json.loads(code_block.group(1))
+            return json.loads(_strip_json_comments(code_block.group(1)))
         except json.JSONDecodeError:
             pass
 

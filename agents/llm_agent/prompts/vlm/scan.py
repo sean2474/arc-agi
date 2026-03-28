@@ -50,10 +50,10 @@ Respond in JSON:
 
 Field rules:
 - "obj_NNN": use sequential IDs starting from obj_001.
-- "name": game-role name only (e.g. "player", "goal", "wall", "enemy", "platform", "key").
+- "name": game-role name only.
   Do NOT use color or shape as name (e.g. "green_block" or "small_square" are WRONG).
   If role is unknown, use "unknown_N" (e.g. "unknown_1").
-- "shape": visual shape only (e.g. "square", "rectangle", "L-shape", "dot").
+- "shape": visual shape only.
 - "colors": list of hex color values that make up this object. Single-color objects have 1 element.
 - "position": "row,col" top-left corner, 0-indexed.
 - "size": "HxW" in cells. Example: position "10,32" size "3x4" = rows 10-12, cols 32-35.
