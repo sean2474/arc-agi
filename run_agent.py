@@ -303,7 +303,6 @@ def main():
 
     agent = LLMAgent(
         model=agent_cfg["model"],
-        max_tokens=agent_cfg.get("max_tokens", None),
         name=agent_cfg["name"],
         api_base=agent_cfg.get("api_base", "http://localhost:8080/v1"),
     )
