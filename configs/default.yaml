@@ -6,7 +6,6 @@ server:
   extra_args: >-
     --served-model-name qwen2.5-vl-7b
     --gpu-memory-utilization 0.80
-    --max-model-len 32768
     --mm-processor-kwargs '{"max_pixels": 262144}'
 
 agent:
@@ -16,7 +15,7 @@ agent:
 
 game:
   ids: ["ls20"]                       # 빈 리스트 = 모든 게임
-  max_steps: 30                       # 게임당 최대 스텝 수
+  max_steps: 50                       # 게임당 최대 스텝 수
   stop_level: 1                       # N레벨 클리어 후 종료 (0=전체)
 
 output:
