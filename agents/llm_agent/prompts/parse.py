@@ -2,6 +2,11 @@ import json
 import re
 
 
+def _strip_json_comments(text: str) -> str:
+    """JSON 문자열에서 // 인라인 주석 제거."""
+    return re.sub(r"//[^\n]*", "", text)
+
+
 def parse_llm_response(text: str) -> dict | None:
     """LLM 응답에서 JSON 추출. <think> 태그, 코드블록 등 처리."""
     if not text:
@@ -40,7 +45,7 @@ def parse_llm_response(text: str) -> dict | None:
             depth -= 1
             if depth == 0:
                 try:
-                    return json.loads(text[start:i + 1])
+                    return json.loads(_strip_json_comments(text[start:i + 1]))
                 except json.JSONDecodeError:
                     break
 
@@ -48,7 +53,7 @@ def parse_llm_response(text: str) -> dict | None:
     match = re.search(r"\{[\s\S]*\}", text)
     if match:
         try:
-            return json.loads(match.group())
+            return json.loads(_strip_json_comments(match.group()))
         except json.JSONDecodeError:
             pass
 
