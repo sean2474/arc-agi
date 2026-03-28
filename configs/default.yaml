@@ -3,7 +3,11 @@
 server:
   model_path: "./qwen2.5-vl-7b"
   port: 8080
-  extra_args: "--served-model-name qwen2.5-vl-7b"
+  extra_args: >-
+    --served-model-name qwen2.5-vl-7b
+    --gpu-memory-utilization 0.80
+    --max-model-len 32768
+    --mm-processor-kwargs '{"max_pixels": 262144}'
 
 agent:
   name: "qwen_vl_v0"

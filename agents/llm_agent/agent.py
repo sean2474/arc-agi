@@ -213,7 +213,7 @@ class LLMAgent:
 
             # EVALUATE
             print(f"  [EVALUATE]")
-            report, discoveries = do_evaluate(self, curr_grid, incident_result)
+            report, discoveries = do_evaluate(self, observe_result, incident_result)
             self.reports.append(report)
 
             # UPDATE

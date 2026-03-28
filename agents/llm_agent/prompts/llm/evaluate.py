@@ -8,12 +8,10 @@ def build_evaluate_message(
     planned_sequence: list,
     executed_actions: list[str],
     abort_reason: str | None,
-    observations: list[dict],
-    frame_before: list[str],
-    frame_after: list[str],
+    observe_result: dict,
     incident_result: dict | None = None,
 ) -> str:
-    obs_str = json.dumps(observations, indent=2, ensure_ascii=False) if observations else "[]"
+    observe_str = json.dumps(observe_result, indent=2, ensure_ascii=False)
 
     incident_section = ""
     if incident_result:
@@ -31,27 +29,17 @@ SEQUENCE RESULT
   executed: {json.dumps(executed_actions)}
   abort_reason: {abort_reason or "null (completed normally)"}
 
-OBSERVATIONS DURING SEQUENCE
-{obs_str}
+OBSERVATION (from visual analysis of before/after frames)
+{observe_str}
+{incident_section}Evaluate the sequence using the OBSERVATION above. Work through:
 
-FRAME BEFORE
-{chr(10).join(frame_before)}
+STEP 1 - GOAL CHECK: Did the executed actions achieve the stated goal?
+  Use the observation — do NOT re-analyze frames independently.
 
-FRAME AFTER
-{chr(10).join(frame_after)}
-{incident_section}
-Before evaluating, work through these steps:
-
-STEP 1 - COMPARE: Compare FRAME BEFORE and FRAME AFTER.
-  What moved? What appeared? What disappeared?
-
-STEP 2 - GOAL CHECK: Did the sequence achieve its stated goal?
-  Check against success_condition and failure_condition.
-
-STEP 3 - SURPRISES: Did anything unexpected happen?
+STEP 2 - SURPRISES: Did anything unexpected happen?
   Anything that contradicts current knowledge?
 
-STEP 4 - LESSONS: What should be remembered for future sequences?
+STEP 3 - LESSONS: What should be remembered for future sequences?
   What worked? What didn't? What should never be tried again?
 
 Then respond in JSON:
@@ -70,6 +58,6 @@ Then respond in JSON:
 }}
 
 Rules:
+- Base your evaluation ONLY on the OBSERVATION provided above.
 - Focus ONLY on evaluating. Don't plan next actions.
-- Be honest about failure. Don't rationalize bad results.
-- STEP 4 (LESSONS) feeds into REPORTS that prevent repeating mistakes."""
+- Be honest about failure. Don't rationalize bad results."""

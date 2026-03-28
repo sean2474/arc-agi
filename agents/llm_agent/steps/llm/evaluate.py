@@ -11,23 +11,21 @@ from ...prompts import build_evaluate_message
 
 def do_evaluate(
     agent: LLMAgent,
-    curr_grid: list[str],
+    observe_result: dict,
     incident_result: dict | None = None,
 ) -> tuple[dict, list]:
     """(report, discoveries) 반환."""
-    last_action = agent.history[-1].action if agent.history else "unknown"
-    last_goal = agent.history[-1].goal if agent.history else ""
+    last_action = agent.last_action or "unknown"
+    last_goal = agent.last_goal or ""
 
     msg = build_evaluate_message(
-        sequence_goal=last_goal or "",
+        sequence_goal=last_goal,
         success_condition=agent.success_condition,
         failure_condition=agent.failure_condition,
         planned_sequence=[last_action],
         executed_actions=[last_action],
         abort_reason=None,
-        observations=[],
-        frame_before=agent.prev_grid or [],
-        frame_after=curr_grid,
+        observe_result=observe_result,
         incident_result=incident_result,
     )
     parsed = agent._call_vlm(msg, label="evaluate")
