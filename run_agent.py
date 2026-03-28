@@ -238,7 +238,8 @@ def run_game(game_id: str, agent: LLMAgent, max_steps: int, data_dir: str, save_
             continue
 
         # 액션 실행
-        obs = env.step(action)
+        action_data = getattr(agent, "last_action_data", {}) or {}
+        obs = env.step(action, data=action_data if action_data else None)
 
         # game_over → 자동 리셋
         if obs.state == GameState.GAME_OVER:

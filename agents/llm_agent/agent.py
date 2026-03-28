@@ -309,9 +309,9 @@ class LLMAgent:
 
         if result is None:
             from arcengine import GameAction
-            result = (GameAction.ACTION1, "up")
+            result = (GameAction.ACTION1, "up", {})
             action_name = "up"
-        action, action_name = result
+        action, action_name, self.last_action_data = result
 
         self.last_action = raw_action
 

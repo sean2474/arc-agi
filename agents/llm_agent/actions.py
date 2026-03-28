@@ -49,16 +49,14 @@ def resolve_click_object(object_name: str, world_model: dict) -> tuple[int, int]
     return _parse_position(obj.get("position", ""))
 
 
-def action_to_gameaction(item, available_values: set[int], world_model: dict | None = None) -> tuple[GameAction, str] | None:
-    """액션 이름/숫자/클릭 → (GameAction, display_name). 무효하면 None."""
+def action_to_gameaction(item, available_values: set[int], world_model: dict | None = None) -> tuple[GameAction, str, dict] | None:
+    """액션 이름/숫자/클릭 → (GameAction, display_name, data). 무효하면 None."""
     # click: ["click", x, y] (좌표 직접)
     if isinstance(item, list) and len(item) == 3:
         key = item[0]
         if key == "click" or key == 6:
-            action = GameAction.ACTION6
             x, y = int(item[1]), int(item[2])
-            action.set_data({"x": x, "y": y})
-            return action, f"click({x},{y})"
+            return GameAction.ACTION6, f"click({x},{y})", {"x": x, "y": y}
         return None
 
     # click: ["click", "object_name"] (object 대상)
@@ -67,9 +65,7 @@ def action_to_gameaction(item, available_values: set[int], world_model: dict | N
         if (key == "click" or key == 6) and isinstance(item[1], str) and world_model:
             coords = resolve_click_object(item[1], world_model)
             if coords:
-                action = GameAction.ACTION6
-                action.set_data({"x": coords[0], "y": coords[1]})
-                return action, f"click({item[1]}@{coords[0]},{coords[1]})"
+                return GameAction.ACTION6, f"click({item[1]}@{coords[0]},{coords[1]})", {"x": coords[0], "y": coords[1]}
         return None
 
     # 일반 액션 이름
@@ -86,4 +82,4 @@ def action_to_gameaction(item, available_values: set[int], world_model: dict | N
     action = ACTION_NUM_MAP.get(val)
     if action is None:
         return None
-    return action, _NUM_TO_NAME.get(val, f"action{val}")
+    return action, _NUM_TO_NAME.get(val, f"action{val}"), {}
