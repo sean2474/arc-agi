@@ -34,14 +34,12 @@ class LLMAgent:
     def __init__(
         self,
         model: str = "qwen2.5-vl-7b",
-        max_tokens: int | None = None,
         name: str = "qwen_vl_v0",
         api_base: str = "http://localhost:8080/v1",
     ):
         import openai
         self.client = openai.OpenAI(base_url=api_base, api_key="local")
         self.model = model
-        self.max_tokens = max_tokens
         self.name = name
 
         self.summary: dict = {}
@@ -73,7 +71,7 @@ class LLMAgent:
 
     # ── 모델 호출 래퍼 ──
 
-    def _call_vlm(self, text: str, images_b64: list[str] = [], retries: int = 3, label: str = "") -> dict | None:
+    def _call_vlm(self, text: str, images_b64: list[str] = [], retries: int = 3, label: str = "", max_tokens: int = 8192) -> dict | None:
         """VLM 호출. images_b64가 비어있으면 텍스트만 전달."""
         if label:
             self._step_prompts[label] = text
@@ -94,9 +92,8 @@ class LLMAgent:
                         {"role": "system", "content": SYSTEM_PROMPT},
                         {"role": "user", "content": content},
                     ],
+                    "max_tokens": max_tokens,
                 }
-                if self.max_tokens is not None:
-                    kwargs["max_tokens"] = self.max_tokens
                 response = self.client.chat.completions.create(**kwargs)
                 self.llm_call_count += 1
                 usage = response.usage
