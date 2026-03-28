@@ -71,7 +71,7 @@ class LLMAgent:
 
     # ── 모델 호출 래퍼 ──
 
-    def _call_vlm(self, text: str, images_b64: list[str] = [], retries: int = 3, label: str = "", thinking_budget: int | None = None) -> dict | None:
+    def _call_vlm(self, text: str, images_b64: list[str] = [], retries: int = 3, label: str = "", thinking_budget: int | None = None, max_tokens: int = 4096) -> dict | None:
         """VLM 호출. images_b64가 비어있으면 텍스트만 전달."""
         if label:
             self._step_prompts[label] = text
@@ -86,12 +86,14 @@ class LLMAgent:
 
         for attempt in range(retries):
             try:
+                effective_max_tokens = (thinking_budget + max_tokens) if thinking_budget is not None else max_tokens
                 kwargs = {
                     "model": self.model,
                     "messages": [
                         {"role": "system", "content": SYSTEM_PROMPT},
                         {"role": "user", "content": content},
                     ],
+                    "max_tokens": effective_max_tokens,
                 }
                 if thinking_budget is not None:
                     kwargs["extra_body"] = {"thinking_budget": thinking_budget}
