@@ -5,12 +5,12 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..agent import LLMAgent
 
-from ..grid_utils import grid_to_image_base64_with_coords, enrich_objects_bbox
+from ..grid_utils import grid_to_image_base64
 from ..prompts import build_scan_message
 
 
 def do_scan(agent: LLMAgent, step: int, curr_grid: list[str], curr_levels: int) -> dict:
-    img_b64 = grid_to_image_base64_with_coords(curr_grid)
+    img_b64 = grid_to_image_base64(curr_grid)
     msg = build_scan_message(
         game_id=agent.game_info.get("game_id", "unknown"),
         available_actions=agent.game_info.get("available_actions", []),
@@ -19,7 +19,7 @@ def do_scan(agent: LLMAgent, step: int, curr_grid: list[str], curr_levels: int) 
         step=step,
         grid=curr_grid,
     )
-    parsed = agent._call_vlm(msg, [img_b64], label="scan", max_tokens=8192)
+    parsed = agent._call_vlm(msg, [img_b64], label="scan", thinking_budget=4096)
     if parsed is None:
         raise RuntimeError("SCAN: VLM returned None (parse failed)")
     # LLM이 list로 반환한 경우 obj_NNN dict로 변환
