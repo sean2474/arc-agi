@@ -8,7 +8,7 @@ server:
 
   # VLM
   vlm_model_path: "./qwen2.5-vl-7b"
-  vlm_port: 8081
+  vlm_port: 8082
   vlm_extra_args: "--served-model-name qwen2.5-vl-7b"
 
 agent:
