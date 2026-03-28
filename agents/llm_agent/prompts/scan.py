@@ -1,7 +1,7 @@
 """SCAN — Phase 1 전용. 첫 프레임 전체 분석."""
 
 import json
-from ...const import ACTION_NUM_TO_NAME
+from ..const import ACTION_NUM_TO_NAME
 
 
 def _actions_as_names(available_actions: list[dict]) -> str:
@@ -25,11 +25,6 @@ GAME INFO
   levels_completed: {levels_completed} / {win_levels}
   step: {step}
   grid_size: {rows}x{cols} (rows x cols, 0-indexed: row 0~{rows-1}, col 0~{cols-1})
-
-CURRENT FRAME
-{chr(10).join(grid)}
-
-This is the first frame. Analyze everything on screen.
 
 STEP 1 - OBJECTS: List every distinguishable object/region.
   An "object" = any visually distinct group of cells.
@@ -64,4 +59,4 @@ Field rules:
 Rules:
 - Do NOT suggest actions. Do NOT plan. Analyze ONLY.
 - List ALL distinguishable objects, even background.
-- Group objects of the same game role into ONE entry unless they are clearly separate game elements (e.g. multiple independent enemies). Do NOT split one wall/terrain into many pieces — use the bounding box of the entire region."""
+- Group objects of the same game role into ONE entry unless they are clearly separate game elements. Do NOT split one wall/terrain into many pieces — use the bounding box of the entire region."""

@@ -1,5 +1,5 @@
 import json
-from ...const import ACTION_NUM_TO_NAME
+from ..const import ACTION_NUM_TO_NAME
 
 
 def _actions_as_names(available_actions: list[dict]) -> str:

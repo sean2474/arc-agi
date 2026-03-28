@@ -72,6 +72,49 @@ DIFF: 52 cells changed, mainly in rows 30-50 cols 20-40
 
 → 실험해서 어떤 방식이 8B 모델에 효과적인지 비교 필요
 
+## 아이디어 (계속)
+
+### Action Scoring 설계 방향 (2026-03-28)
+
+핵심 원칙: **LLM → 가설 텍스트 생성, 코드 → 숫자 계산**
+
+#### 점수 구조
+
+```python
+score(action) = 2.0 * info_gain + 1.5 * progress - 2.0 * death_risk - 1.0 * redundancy
+```
+
+값은 연속값 대신 버킷 사용: `none=0.0 / low=0.25 / medium=0.5 / high=0.75 / very_high=1.0`
+
+#### 버전별 구현 계획
+
+| 항목 | v1 (현재) | v2 (경험 쌓인 후) |
+|------|-----------|------------------|
+| `info_gain` | untested 오브젝트/액션 여부 | discriminating hypotheses count |
+| `death_risk` | `type_hypothesis` prior (`dangerous` → 0.75) | `(context, action)` 통계 |
+| `progress` | `goal.confidence × bbox 거리` | subgoal completion |
+| `redundancy` | 같은 상태에서 같은 행동 반복 횟수 | no-op rate 통계 |
+
+#### info_gain 초반 한계
+
+- 처음 보는 게임에선 행동 결과를 예측 불가 → `action_can_discriminate` 계산 불가
+- v1에서는 "아직 안 테스트된 오브젝트/액션 = 높은 info_gain" heuristic으로 대체
+- 경험이 쌓이면 가설 구분 가능성으로 계산
+
+#### DECIDE 역할 변경
+
+- 기존: LLM이 action 하나를 직접 선택
+- 신규: LLM → candidate actions + reasoning 제안, **코드가 점수 계산 후 최종 선택**
+
+#### 구현 전 필요한 설계
+
+1. `goal_hypotheses` 리스트 구조 (world_model)
+2. `interactions` conditional rules 구조 (`subject`, `object`, `context`, `result`)
+3. action scoring 코드 인터페이스
+4. DECIDE 프롬프트 역할 변경
+
+---
+
 ## 관찰
 
 ### 2026-03-27

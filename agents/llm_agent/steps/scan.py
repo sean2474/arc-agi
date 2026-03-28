@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ...agent import LLMAgent
+    from ..agent import LLMAgent
 
-from ...grid_utils import grid_to_image_base64
-from ...prompts import build_scan_message
+from ..grid_utils import grid_to_image_base64
+from ..prompts import build_scan_message
 
 
 def do_scan(agent: LLMAgent, step: int, curr_grid: list[str], curr_levels: int) -> dict:

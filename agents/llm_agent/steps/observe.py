@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ...agent import LLMAgent
+    from ..agent import LLMAgent
 
-from ...grid_utils import grid_to_image_base64, grid_to_image_base64_annotated, summarize_diff
-from ...prompts import build_observe_message
+from ..grid_utils import grid_to_image_base64, grid_to_image_base64_annotated, summarize_diff
+from ..prompts import build_observe_message
 
 
 def do_observe(agent: LLMAgent, action_taken: str, goal: str, prev_grid: list[str], curr_grid: list[str]) -> dict:
