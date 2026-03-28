@@ -36,13 +36,15 @@ Use the image and object positions/bboxes to reason about the path.
 Respond in JSON:
 {{
   "reasoning": "describe object positions, obstacles, and how you plan to reach the subgoal",
-  "action_sequence": ["action1", "action2", ...],
+  "action_sequence": ["right", "down", ["click", "obj_name"]],
   "subgoal": "..."
 }}
 
 Rules:
-- action_sequence: 1-6 actions. [{actions_names}]. Click: ["click", "obj_name"] (use the object's name field).
+- action_sequence: 1-6 items. Available: [{actions_names}].
+  - Normal actions: plain string — "up", "down", "left", "right", "interact", "undo"
+  - Click action: a 2-element array — ["click", "name_of_object"] where name matches an object's "name" field above.
+  - NEVER write "click" as a plain string. It is ALWAYS ["click", "obj_name"].
 - reasoning: MUST include current positions of key objects and why you chose this path.
 - Do NOT include game goals or win conditions — only focus on achieving the current subgoal.
-- If the subgoal requires clicking: ["click", "obj_name"] counts as one action.
 """

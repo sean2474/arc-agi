@@ -310,7 +310,8 @@ class LLMAgent:
             action_name = raw_action
 
         if result is None:
-            raise RuntimeError(f"Cannot resolve action {raw_action!r} — check DECIDE output and object names")
+            obj_names = [v.get("name") for v in self.world_model.to_dict().get("objects", {}).values() if isinstance(v, dict)]
+            raise RuntimeError(f"Cannot resolve action {raw_action!r} — available object names: {obj_names}")
         action, action_name, self.last_action_data = result
 
         self.last_action = action_name

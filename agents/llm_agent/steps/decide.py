@@ -1,15 +1,11 @@
 """STEP: DECIDE — action_sequence 계획. 이미지 포함."""
 from __future__ import annotations
 
-import random
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..agent import LLMAgent
 
-from arcengine import GameAction
-
-from ..actions import action_to_gameaction
 from ..grid_utils import grid_to_image_base64_annotated, grid_to_image_base64
 from ..prompts import build_decide_message
 
@@ -32,22 +28,14 @@ def do_decide(agent: LLMAgent, current_subgoal: dict, observe_result: dict, curr
     parsed = agent._call_vlm(msg, [curr_img], label="decide")
 
     if parsed is None:
-        print("  [PARSE_FAIL] DECIDE, random fallback")
-        val = random.choice(list(agent.available_values))
-        result = action_to_gameaction(val, agent.available_values)
-        action_name = result[1] if result else "up"
-        return [action_name]
+        raise RuntimeError("DECIDE: VLM returned None (parse failed)")
 
-    seq = parsed.get("action_sequence", [])
+    seq = parsed.get("action_sequence")
     if not seq or not isinstance(seq, list):
-        raw = parsed.get("action", "up")
-        seq = [raw] if raw else ["up"]
+        raise RuntimeError(f"DECIDE: missing or invalid action_sequence in response: {parsed}")
 
     # 유효성 필터: action name 또는 click 리스트
-    valid = []
-    for a in seq[:6]:
-        if isinstance(a, list):  # ["click", "obj_id"]
-            valid.append(a)
-        elif isinstance(a, str):
-            valid.append(a)
-    return valid if valid else ["up"]
+    valid = [a for a in seq[:6] if isinstance(a, (str, list))]
+    if not valid:
+        raise RuntimeError(f"DECIDE: action_sequence is empty after filtering: {seq}")
+    return valid

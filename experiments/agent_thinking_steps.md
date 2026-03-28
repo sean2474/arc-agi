@@ -119,7 +119,7 @@ VLM + 코드 diff 병행 이유:
 
 ## DECIDE (VLM + 이미지)
 
-- 입력: `current_subgoal` + OBSERVE 결과 + objects(위치/bbox) + 현재 이미지
+- 입력: `current_subgoal` + OBSERVE 결과 + objects(위치/bbox 포함, 같은 색상/모양이어도 좌표로 구분) + **bbox 어노테이션 이미지**
 - 목적: 서브골 달성을 위한 **action sequence** 계획
 - **game goal / goal_hypotheses / reports 입력 없음** — 순수 경로/상호작용 계획만
 - 하는 일:
@@ -139,6 +139,16 @@ VLM + 코드 diff 병행 이유:
     "subgoal": "reach blue object at (3,10)"
   }
   ```
+  click 액션이 필요한 경우:
+  ```json
+  {
+    "reasoning": "need to click on platform at bbox row 46-47, col 33-37",
+    "action_sequence": [["click", "platform"], "right"],
+    "subgoal": "activate platform"
+  }
+  ```
+  - click 아이템은 **배열** `["click", "obj_name"]` 형식 — 일반 액션 문자열과 혼용 금지
+  - `"click"` 단독 문자열은 유효하지 않음 → `RuntimeError`
 
 ---
 

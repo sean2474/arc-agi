@@ -389,7 +389,7 @@ class WorldModel:
     def to_dict(self) -> dict:
         return copy.deepcopy(self._data)
 
-    _PROMPT_FIELDS = {"name", "shape", "colors", "position", "size", "type_hypothesis"}
+    _PROMPT_FIELDS = {"name", "shape", "colors", "position", "size", "type_hypothesis", "bbox"}
 
     def to_prompt_dict(self) -> dict:
         """프롬프트용 직렬화. objects를 list로, 내부 필드(bbox/instance_id 등) 제거."""
