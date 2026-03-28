@@ -58,4 +58,5 @@ relationship_updates: only fill if a passive event was observed (object disappea
 Rules:
 - Do NOT re-analyze all objects. Focus on CHANGES only.
 - Do NOT suggest actions. Observe ONLY.
-- Be specific about positions."""
+- Be specific about positions.
+- Changes in objects at the extreme corners or edges of the screen are HUD updates (step counter, score) — NOT meaningful game events. Do NOT interpret these as success signals."""

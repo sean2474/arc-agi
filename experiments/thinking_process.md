@@ -104,24 +104,40 @@ VLM + 코드 diff 병행 이유:
 
 ---
 
-## DECIDE
+## PLANNER (알고리즘, LLM 호출 없음)
 
-- 입력: world_model + reports + phase hint
-- 목적: 다음에 할 1개 액션을 결정
+- 입력: world_model.plans 리스트
+- 목적: 현재 실행할 서브골 1개 선택
 - 하는 일:
-  - world_model의 confidence를 보고 가장 정보가 부족한 곳을 우선 탐색
-  - Phase에 따라 다른 전략:
-    - Phase 2 (action_discovery): untested action 테스트
-    - Phase 3 (interaction_discovery): 오브젝트에 접근/작용 시도
-    - Phase 4 (goal_execution): 목표 달성 전략 실행
-  - `relationships`를 참고해 위험 오브젝트 회피 + 유용한 오브젝트 우선 탐색
-    - `interaction_result: null`인 relationship → 테스트 대상 (info_gain 높음)
-    - 위험한 관계가 확인된 오브젝트 → 접근 시 risk 높음
-  - goal + success_condition + failure_condition 명시
+  - `status=pending`인 항목 중 priority 숫자 가장 낮은 것 선택
+  - 선택된 항목 status → `active`
+  - pending 항목 없으면 UPDATE에 "새 plan 생성 필요" 신호 전달
+- 출력: `current_subgoal` (plan의 description + rationale)
+
+---
+
+## DECIDE (VLM + 이미지)
+
+- 입력: `current_subgoal` + OBSERVE 결과 + objects(위치/bbox) + 현재 이미지
+- 목적: 서브골 달성을 위한 **action sequence** 계획
+- **game goal / goal_hypotheses / reports 입력 없음** — 순수 경로/상호작용 계획만
+- 하는 일:
+  - 이미지와 object 위치를 보고 경로 계산
+    - 예: player(3,5) → target(3,10), 중간 벽(col 7) → 우회 경로
+  - 최대 6개 action의 sequence 계획
+  - 각 action의 기대 효과 추론
 - 하지 않는 일:
-  - 여러 액션 한번에 출력 (항상 1개만)
+  - 게임 목표 판단 (Planner의 역할)
   - 관찰 (OBSERVE의 역할)
-- 출력: action (1개) + goal + success/failure condition + win_condition_hypothesis
+  - 1개 초과 sequence 금지 → 최대 6개
+- 출력:
+  ```json
+  {
+    "reasoning": "player at (3,5), target at (3,10), wall at col 7. detour: right×2, down×1, right×2",
+    "action_sequence": ["right", "right", "down", "right", "right"],
+    "subgoal": "reach blue object at (3,10)"
+  }
+  ```
 
 ---
 
@@ -133,21 +149,30 @@ VLM + 코드 diff 병행 이유:
 
 ---
 
-## EVALUATE
+## ACTION ANALYZER (VLM)
 
-- 입력: **OBSERVE 결과** (VLM이 이미 분석한 것) + goal + success/failure condition (grid 원본 없음, 독립 재분석 없음)
-- 목적: 방금 실행한 액션의 결과를 평가
+- 입력: `planned_sequence` + `executed_action` + OBSERVE 결과 + `current_subgoal`
+- 목적: 방금 실행된 1개 액션이 계획대로 됐는지 판정 + 시퀀스 계속 여부 결정
 - 하는 일:
-  - OBSERVE가 보고한 변화를 기반으로 goal 달성 여부 판정
-  - 예상 밖 변화 감지
-  - 배운 것 정리 (key_learnings)
-  - 새로운 발견 (discoveries) 추출
+  - OBSERVE 결과가 기대와 일치하는지 확인
+  - 예상 밖 변화(적 이동, 오브젝트 소멸 등) 감지 → abort 트리거
+  - 서브골 달성 여부 판정
+  - 배운 것 정리 (discoveries)
 - 하지 않는 일:
   - grid 원본 비교 (OBSERVE가 이미 했음)
   - 다음 액션 계획 (DECIDE의 역할)
-  - world_model 갱신 (UPDATE의 역할)
   - 합리화 금지 — 실패하면 실패라고 정직하게
-- 출력: report (goal_achieved, reasoning, key_learnings) + discoveries
+- 출력:
+  ```json
+  {
+    "status": "continue | abort | success",
+    "reason": "...",
+    "discoveries": [...]
+  }
+  ```
+  - `continue`: sequence 다음 action 실행
+  - `abort`: 예상 밖 변화 → pending_sequence 초기화 → Planner에서 re-plan
+  - `success`: 서브골 달성 → plan을 `done`으로 → Planner에서 다음 plan 선택
 
 ---
 
@@ -164,7 +189,7 @@ VLM + 코드 diff 병행 이유:
     - 반증된 relationship → confidence 낮춤 또는 제거
   - dangers 추가
   - 방향키: 1개 테스트 결과로 나머지 3개 추론
-  - immediate_plan / strategic_plan 갱신
+  - plans 갱신 (새 서브골 추가, done/failed 정리)
 - 하지 않는 일:
   - 관찰 (OBSERVE의 역할)
   - 판단 (EVALUATE의 역할)

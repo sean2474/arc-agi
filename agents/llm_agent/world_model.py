@@ -24,7 +24,9 @@ class WorldModel:
             "dangers": [],
             "interactions": [],
             "relationships": [],
-            "plan": {"description": "scan first frame", "confidence": 0.5},
+            "plans": [
+                {"description": "scan first frame", "priority": 1, "status": "pending", "confidence": 0.5, "rationale": "initial scan"}
+            ],
         }
 
     # ── Phase ──
@@ -223,13 +225,43 @@ class WorldModel:
             "confidence": confidence,
         })
 
-    # ── Plan ──
+    # ── Plans ──
 
-    def get_plan(self) -> dict:
-        return self._data["plan"]
+    def get_plans(self) -> list:
+        return self._data["plans"]
 
-    def set_plan(self, description: str, confidence: float):
-        self._data["plan"] = {"description": description, "confidence": confidence}
+    def add_plan(self, description: str, priority: int = 99, confidence: float = 0.5, rationale: str = ""):
+        """새 plan 추가 (pending 상태)."""
+        self._data["plans"].append({
+            "description": description,
+            "priority": priority,
+            "status": "pending",
+            "confidence": confidence,
+            "rationale": rationale,
+        })
+
+    def get_active_plan(self) -> dict | None:
+        """status=active 인 항목 반환."""
+        for p in self._data["plans"]:
+            if p.get("status") == "active":
+                return p
+        return None
+
+    def select_next_plan(self) -> dict | None:
+        """알고리즘 Planner: pending 중 priority 가장 낙은 것 선택 → active."""
+        pending = [p for p in self._data["plans"] if p.get("status") == "pending"]
+        if not pending:
+            return None
+        chosen = min(pending, key=lambda p: p.get("priority", 99))
+        chosen["status"] = "active"
+        return chosen
+
+    def mark_plan(self, description: str, status: str):
+        """description으로 plan 찾아 status(done/failed) 마킹."""
+        for p in self._data["plans"]:
+            if p.get("description") == description:
+                p["status"] = status
+                return
 
     # ── Game Type ──
 
@@ -274,7 +306,17 @@ class WorldModel:
                         r.get("interaction_result"), r.get("confidence", 0.3),
                     )
 
-        skip = {"actions", "objects", "goal_hypotheses", "relationships"}
+        if "plans" in updated_wm and isinstance(updated_wm["plans"], list):
+            for p in updated_wm["plans"]:
+                if not isinstance(p, dict) or not p.get("description"):
+                    continue
+                existing = next((x for x in self._data["plans"] if x.get("description") == p["description"]), None)
+                if existing:
+                    existing.update(p)
+                else:
+                    self._data["plans"].append(p)
+
+        skip = {"actions", "objects", "goal_hypotheses", "relationships", "plans"}
         for k, v in updated_wm.items():
             if k not in skip and k in self._data:
                 self._data[k] = v
@@ -308,10 +350,16 @@ class WorldModel:
                     kept.append(r)
         self._data["relationships"] = kept
 
-        self._data["plan"] = {
-            "description": f"scan new level. previous goal: {prev_goal_desc}",
-            "confidence": 0.5,
-        }
+        # plans: done/failed 제거, 초기 plan 1개 추가
+        self._data["plans"] = [
+            {
+                "description": f"scan new level. previous goal: {prev_goal_desc}",
+                "priority": 1,
+                "status": "pending",
+                "confidence": 0.5,
+                "rationale": "new level started",
+            }
+        ]
 
     def match_objects_from_prev_level(self, new_objects: dict) -> dict:
         """새 레벨 SCAN 결과와 이전 레벨 objects를 value로 매칭. 지식 carry-over."""

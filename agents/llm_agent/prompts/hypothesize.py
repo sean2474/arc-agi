@@ -48,4 +48,5 @@ Rules:
 - Do NOT assume any specific game type. Consider all possibilities.
 - goal_hypotheses: list ALL plausible win conditions you can think of.
 - relationship_hypotheses: objects that look dangerous, activatable, or linked. Use "name (shape, color)" format.
-- test_priority: which actions to test first, ordered by expected information gain."""
+- test_priority: which actions to test first, ordered by expected information gain.
+- Objects named "step_counter", "score", or "hud" are display elements — exclude from object_hypotheses and do NOT assign them interactive roles."""

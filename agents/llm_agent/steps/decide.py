@@ -1,4 +1,4 @@
-"""STEP 2: DECIDE — 1개 액션 결정."""
+"""STEP: DECIDE — action_sequence 계획. 이미지 포함."""
 from __future__ import annotations
 
 import random
@@ -10,40 +10,44 @@ if TYPE_CHECKING:
 from arcengine import GameAction
 
 from ..actions import action_to_gameaction
-from ..const import get_phase_hint
+from ..grid_utils import grid_to_image_base64_annotated, grid_to_image_base64
 from ..prompts import build_decide_message
 
 
-def do_decide(agent: LLMAgent, observe_result: dict) -> tuple[GameAction, str, str | None, str]:
-    """(action, action_name, reasoning, goal) 반환."""
-    hint = get_phase_hint(agent.world_model.to_dict())
+def do_decide(agent: LLMAgent, current_subgoal: dict, observe_result: dict, curr_grid: list[str]) -> list[str]:
+    """action_sequence (list[str]) 반환."""
+    objects = agent.world_model.get_objects()
+    if objects:
+        curr_img = grid_to_image_base64_annotated(curr_grid, objects)
+    else:
+        curr_img = grid_to_image_base64(curr_grid)
 
     msg = build_decide_message(
+        current_subgoal=current_subgoal,
         observe_result=observe_result,
-        summary=agent.summary,
-        world_model=agent.world_model.to_prompt_dict(),
-        reports=agent.reports,
+        objects=agent.world_model.to_prompt_dict().get("objects", {}),
         available_actions=agent.game_info.get("available_actions", []),
-        hint=hint,
+        summary=agent.summary,
     )
-    parsed = agent._call_vlm(msg, label="decide")
+    parsed = agent._call_vlm(msg, [curr_img], label="decide")
 
     if parsed is None:
-        print(f"  [PARSE_FAIL] DECIDE, random fallback")
+        print("  [PARSE_FAIL] DECIDE, random fallback")
         val = random.choice(list(agent.available_values))
         result = action_to_gameaction(val, agent.available_values)
-        action, name = result if result else (GameAction.ACTION1, "up")
-        return action, name, None, "random (parse failed)"
+        action_name = result[1] if result else "up"
+        return [action_name]
 
-    raw_action = parsed.get("action", "up")
-    result = action_to_gameaction(raw_action, agent.available_values, world_model=agent.world_model.to_dict())
-    if result is None:
-        result = (GameAction.ACTION1, "up")
-    action, action_name = result
+    seq = parsed.get("action_sequence", [])
+    if not seq or not isinstance(seq, list):
+        raw = parsed.get("action", "up")
+        seq = [raw] if raw else ["up"]
 
-    reasoning = parsed.get("reasoning", "")
-    goal = parsed.get("goal", "")
-    agent.success_condition = parsed.get("success_condition", "")
-    agent.failure_condition = parsed.get("failure_condition", "")
-
-    return action, action_name, reasoning, goal
+    # 유효성 필터: action name 또는 click 리스트
+    valid = []
+    for a in seq[:6]:
+        if isinstance(a, list):  # ["click", "obj_id"]
+            valid.append(a)
+        elif isinstance(a, str):
+            valid.append(a)
+    return valid if valid else ["up"]

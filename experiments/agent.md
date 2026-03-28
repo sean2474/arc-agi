@@ -19,7 +19,7 @@
 |------|------|------|
 | VLM | Qwen2.5-VL-7B | 전체 단계 (SCAN, OBSERVE, HYPOTHESIZE, DECIDE, EVALUATE, UPDATE) |
 
-단일 VLM으로 전체 단계 처리. SCAN/OBSERVE는 이미지 + 텍스트 입력, 나머지는 텍스트만.
+단일 VLM으로 전체 단계 처리. SCAN/OBSERVE/DECIDE는 이미지 + 텍스트 입력, 나머지는 텍스트만.
 32GB VRAM 제약으로 단일 모델 사용.
 
 ## 사이클 구조
@@ -29,8 +29,14 @@ Phase 1 (static_observation):
   SCAN(VLM+이미지) → HYPOTHESIZE(VLM) → UPDATE(VLM) → phase 전환
   DECIDE/EXECUTE 없음.
 
-Phase 2~4:
-  DECIDE(VLM) → EXECUTE → OBSERVE(VLM+이미지) → EVALUATE(VLM) → UPDATE(VLM)
+Phase 2~4 (시퀀스 실행 중이 아닐 때):
+  PLANNER(코드) → DECIDE(VLM+이미지) → EXECUTE → OBSERVE(VLM+이미지) → ACTION ANALYZER(VLM) → UPDATE(VLM)
+
+Phase 2~4 (시퀀스 실행 중일 때):
+  EXECUTE → OBSERVE(VLM+이미지) → ACTION ANALYZER(VLM)
+  ├─ continue: 다음 action 실행
+  ├─ abort: UPDATE(VLM) → PLANNER → DECIDE (re-plan)
+  └─ success: UPDATE(VLM) → PLANNER (plan done, 다음 plan)
 ```
 
 자세한 설명은 thinking_process.md 참고.
@@ -42,29 +48,36 @@ Phase 2~4:
 | **Phase 1** | 1 | SCAN | VLM+이미지 | 이미지로 전체 프레임 분석. objects + position 추출. 코드가 value로 그리드 스캔해 bbox 계산. |
 | **Phase 1** | 2 | HYPOTHESIZE | VLM | 초기 가설 수립. 오브젝트 역할/게임타입/목표 추측. |
 | **Phase 1** | 3 | UPDATE | VLM | objects + 가설을 world_model에 저장. |
-| **Phase 2~4** | 1 | DECIDE | VLM | 1개 액션 결정. world_model 기반. |
-| **Phase 2~4** | 2 | (EXECUTE) | 코드 | env.step(action) 실행. |
-| **Phase 2~4** | 3 | OBSERVE | VLM+어노테이션 이미지 | before/after 이미지(bbox outline+label 포함) 비교 + 코드 diff 요약. |
-| **Phase 2~4** | 4 | EVALUATE | VLM | OBSERVE 결과로 목표 달성 여부 판정. |
-| **Phase 2~4** | 5 | UPDATE | VLM | world_model 갱신. confidence 조정. |
+| **Phase 2~4** | 1 | PLANNER | 코드 | plans 리스트에서 pending 중 가장 우선 plan 선택. status → active. |
+| **Phase 2~4** | 2 | DECIDE | VLM+이미지 | current_subgoal + obs + objects + 이미지 → action_sequence (최대 6개). |
+| **Phase 2~4** | 3 | (EXECUTE) | 코드 | pending_sequence에서 action 1개 pop 후 env.step(). |
+| **Phase 2~4** | 4 | OBSERVE | VLM+어노테이션 이미지 | before/after 이미지(bbox outline+label 포함) 비교 + 코드 diff 요약. |
+| **Phase 2~4** | 5 | ACTION ANALYZER | VLM | continue/abort/success 판정. abort 시 re-plan 트리거. |
+| **Phase 2~4** | 6 | UPDATE | VLM | abort/success 시만. world_model + plans 갱신. |
+
+## PLANNER
+
+코드만. LLM 호출 없음. `world_model.plans`에서 `status=pending` 중 priority 가장 낙은 것 선택.
+pending 없으면 UPDATE에서 새 plan 생성 트리거.
 
 ## DECIDE
 
-1개 액션만 반환. phase hint를 코드가 전달.
-click은 좌표가 아니라 object instance_id를 대상으로.
+입력: `current_subgoal` + OBSERVE 결과 + objects + 이미지. 
+**game goal / goal_hypotheses 없음** — 순수 경로/상호작용 계획만.
+이미지와 object bbox로 경로 계산 → action_sequence (최대 6개) 반환.
+click: `["click", "obj_id"]` 형식.
 
-`relationships` 활용:
-- `interaction_result: null`인 relationship → 테스트 우선 (info_gain 높음)
-- 위험 관계 확인된 오브젝트 근처 → 위험도 높음 (death_risk 상승)
+## ACTION ANALYZER
 
-## EVALUATE
-
-OBSERVE 결과만으로 판단. grid 원본 없음. VLM이 독립적으로 재분석하지 않음.
+OBSERVE 결과 + 계획된 sequence 증거 → `continue / abort / success` 판정.
+- **continue**: 다음 action 그대로 실행
+- **abort**: 예상 밖 변화 → pending_sequence 초기화 → UPDATE → Planner re-plan
+- **success**: 서브골 달성 → plan `done` → UPDATE → Planner 다음 plan
 
 ## UPDATE
 
-EVALUATE report + discoveries로 world_model 갱신. grid 원본 없음.
-`relationships` 갱신: OBSERVE 결과에서 passive 이벤트 반영 → `interaction_result` 채움, confidence 조정.
+Action Analyzer discoveries + (INCIDENT)로 world_model 갱신. abort/success 시만 호출.
+`plans` 갱신: abort → plan 수정 또는 새 plan 추가. success → done 마킹.
 
 ## INCIDENT
 
