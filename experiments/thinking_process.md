@@ -26,17 +26,18 @@ Phase 2~4 (매 스텝):
 
 "여기 뭐가 있지?" — 아무것도 모르는 상태에서 전체 프레임을 처음 분석.
 
-- 모델: **VLM (Qwen3-VL-30B)**
+- 모델: **VLM (Qwen2.5-VL-7B)**
 - 입력: grid를 **이미지로 렌더링**해서 전달 (64x64 hex → 512x512px 이미지)
 - 목적: 화면에 있는 모든 오브젝트를 시각적으로 파악
 - VLM이 하는 일:
   - 이미지에서 구분 가능한 오브젝트/영역 식별
-  - 각각의 색, 위치(bounding box), 크기, 모양 기록
+  - 각각의 색, 위치(position: "n,n" 또는 "n-n,n-n"), 크기, 모양 기록
   - 전체 구조 파악 (사각형, 통로, 경계, 패턴 등)
 - 하지 않는 일:
   - 판단, 의도, 액션 제안 금지
   - 뭐가 뭔지 추측 금지 (전부 type: "unknown")
-- 출력: objects 딕셔너리 (bbox 포함) + patterns
+- 출력: objects 딕셔너리 (position + value) + patterns
+- 후처리: 코드가 `value`(색상)로 그리드를 직접 스캔해 bbox 계산 (단일 좌표 오브젝트만)
 
 왜 VLM인가:
 - 텍스트 LLM은 64x64 hex 배열에서 오브젝트를 정확히 못 뽑음
@@ -68,8 +69,8 @@ Phase 2~4 (매 스텝):
 
 "뭐가 바뀌었지?" — 이미 오브젝트를 알고 있는 상태. 액션 실행 후 변화 관찰.
 
-- 모델: **VLM (Qwen3-VL-30B)**
-- 입력: before/after **이미지 2장** + world_model + 코드가 계산한 diff 요약
+- 모델: **VLM (Qwen2.5-VL-7B)**
+- 입력: before/after **이미지 2장** (world_model 오브젝트 bbox outline + label 어노테이션 포함) + world_model + 코드 diff 요약
 - 목적: 시각적으로 뭐가 바뀌었는지 파악 + diff 요약과 대조
 - VLM이 하는 일:
   - before/after 이미지를 비교해서 변화를 시각적으로 식별
@@ -126,7 +127,7 @@ VLM + 코드 diff 병행 이유:
 
 ## EVALUATE
 
-- 입력: OBSERVE 결과 + goal + success/failure condition (grid 없음)
+- 입력: **OBSERVE 결과** (VLM이 이미 분석한 것) + goal + success/failure condition (grid 원본 없음, 독립 재분석 없음)
 - 목적: 방금 실행한 액션의 결과를 평가
 - 하는 일:
   - OBSERVE가 보고한 변화를 기반으로 goal 달성 여부 판정

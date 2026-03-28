@@ -29,7 +29,6 @@ CURRENT FRAME
 This is the first frame. Analyze everything on screen.
 
 STEP 1 - OBJECTS: List every distinguishable object/region.
-  For each: hex value, color name, position (row/col range), size, shape.
   An "object" = any visually distinct group of cells.
 
 STEP 2 - PATTERNS: What structures do you see?
@@ -38,12 +37,27 @@ STEP 2 - PATTERNS: What structures do you see?
 Respond in JSON:
 {{
   "objects": {{
-    "name": {{"value": "...", "position": "...", "size": "..."}}
+    "obj_NNN": {{
+      "name": "role-based name",
+      "shape": "square|rectangle|L-shape|...",
+      "colors": ["hex1", "hex2"],
+      "position": "row,col",
+      "size": "HxW"
+    }}
   }},
   "patterns": []
 }}
 
+Field rules:
+- "obj_NNN": use sequential IDs starting from obj_001.
+- "name": game-role name only (e.g. "player", "goal", "wall", "enemy", "platform", "key").
+  Do NOT use color or shape as name (e.g. "green_block" or "small_square" are WRONG).
+  If role is unknown, use "unknown_N" (e.g. "unknown_1").
+- "shape": visual shape only (e.g. "square", "rectangle", "L-shape", "dot").
+- "colors": list of hex color values that make up this object. Single-color objects have 1 element.
+- "position": "row,col" top-left corner, 0-indexed.
+- "size": "HxW" in cells. Example: position "10,32" size "3x4" = rows 10-12, cols 32-35.
+
 Rules:
 - Do NOT suggest actions. Do NOT plan. Analyze ONLY.
-- Be specific about positions: use row/column ranges.
-- List ALL distinguishable objects, even if you think they're background."""
+- List ALL distinguishable objects, even background."""

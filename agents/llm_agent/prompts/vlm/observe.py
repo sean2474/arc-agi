@@ -32,7 +32,11 @@ STEP 2 - CLASSIFY: Based on the changes:
 
 STEP 3 - NEW OBJECTS: Any objects not in the WORLD MODEL?
 
-STEP 4 - CHALLENGE: What could contradict your observations?
+STEP 4 - NAME REVIEW: For each object in the WORLD MODEL, is the current "name" still appropriate?
+  If a name should change (e.g. you now know "unknown_1" is actually the "exit"), list it in renamed_objects.
+  Keep names game-role based — not color or shape based.
+
+STEP 5 - CHALLENGE: What could contradict your observations?
 
 Respond in JSON:
 {{
@@ -40,8 +44,11 @@ Respond in JSON:
   "moved_objects": {{}},
   "new_objects": {{}},
   "static_objects": [],
+  "renamed_objects": {{}},
   "contradictions": []
 }}
+
+renamed_objects format: {{"obj_001": {{"new_name": "exit", "reason": "..."}}}}
 
 Rules:
 - Do NOT re-analyze all objects. Focus on CHANGES only.

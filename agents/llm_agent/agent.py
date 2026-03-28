@@ -212,6 +212,15 @@ class LLMAgent:
                 if objs and isinstance(objs, dict):
                     self.world_model.merge_objects(objs)
 
+            # renamed_objects 처리
+            renames = observe_result.get("renamed_objects", {})
+            if renames and isinstance(renames, dict):
+                self.world_model.apply_renames(renames)
+                for obj_id, info in renames.items():
+                    new_name = info.get("new_name") or info.get("name") if isinstance(info, dict) else None
+                    if new_name:
+                        print(f"  [RENAME] {obj_id} → {new_name}")
+
             # EVALUATE
             print(f"  [EVALUATE]")
             report, discoveries = do_evaluate(self, observe_result, incident_result)

@@ -39,12 +39,12 @@ Phase 2~4:
 
 | Phase | 순서 | 호출 | 모델 | 역할 |
 |-------|------|------|------|------|
-| **Phase 1** | 1 | SCAN | VLM+이미지 | 이미지로 전체 프레임 분석. objects + bbox 추출. |
+| **Phase 1** | 1 | SCAN | VLM+이미지 | 이미지로 전체 프레임 분석. objects + position 추출. 코드가 value로 그리드 스캔해 bbox 계산. |
 | **Phase 1** | 2 | HYPOTHESIZE | VLM | 초기 가설 수립. 오브젝트 역할/게임타입/목표 추측. |
 | **Phase 1** | 3 | UPDATE | VLM | objects + 가설을 world_model에 저장. |
 | **Phase 2~4** | 1 | DECIDE | VLM | 1개 액션 결정. world_model 기반. |
 | **Phase 2~4** | 2 | (EXECUTE) | 코드 | env.step(action) 실행. |
-| **Phase 2~4** | 3 | OBSERVE | VLM+이미지 | before/after 이미지 비교 + 코드 diff 요약. |
+| **Phase 2~4** | 3 | OBSERVE | VLM+어노테이션 이미지 | before/after 이미지(bbox outline+label 포함) 비교 + 코드 diff 요약. |
 | **Phase 2~4** | 4 | EVALUATE | VLM | OBSERVE 결과로 목표 달성 여부 판정. |
 | **Phase 2~4** | 5 | UPDATE | VLM | world_model 갱신. confidence 조정. |
 
@@ -55,7 +55,7 @@ click은 좌표가 아니라 object instance_id를 대상으로.
 
 ## EVALUATE
 
-OBSERVE 결과만으로 판단. grid 원본 없음.
+OBSERVE 결과만으로 판단. grid 원본 없음. VLM이 독립적으로 재분석하지 않음.
 
 ## UPDATE
 

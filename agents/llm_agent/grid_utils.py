@@ -25,8 +25,9 @@ def compute_bbox_from_grid(grid: list[str], hex_value: str) -> dict | None:
 
 def enrich_objects_bbox(objects: dict, grid: list[str] | None = None) -> dict:
     """scan/observe 결과 objects에 bbox 보장.
-    position이 "n,n" (단일 좌표) 형태일 때만 bbox 계산.
-    "n-n,n-n" (범위) 형태는 건너뜀 (넓은 영역은 아웃라인 불필요).
+    1순위: position "row,col" + size "HxW" → bbox 계산
+    2순위: grid + value로 직접 스캔 (fallback)
+    "n-n,n-n" 범위 형태는 건너뜀.
     """
     for obj in objects.values():
         if not isinstance(obj, dict):
@@ -36,24 +37,20 @@ def enrich_objects_bbox(objects: dict, grid: list[str] | None = None) -> dict:
 
         pos = obj.get("position", "")
 
-        # 범위 형태(n-n)는 건너뜀
-        if "-" in pos:
-            continue
-
         bbox = None
 
-        # grid + value로 직접 계산
-        if grid is not None:
-            val = obj.get("value", "")
-            if val and len(val) == 1:
-                bbox = compute_bbox_from_grid(grid, val)
-
-        # fallback: "n,n" 또는 "(n,n)" 파싱
-        if bbox is None and pos:
-            nums = re.findall(r"\d+", pos)
-            if len(nums) == 2:
-                bbox = {"row_min": int(nums[0]), "row_max": int(nums[0]),
-                        "col_min": int(nums[1]), "col_max": int(nums[1])}
+        # 1순위: position "row,col" + size "HxW"
+        pos_nums = re.findall(r"\d+", pos)
+        size_nums = re.findall(r"\d+", obj.get("size", ""))
+        if len(pos_nums) >= 2 and len(size_nums) >= 2:
+            row, col = int(pos_nums[0]), int(pos_nums[1])
+            h, w = int(size_nums[0]), int(size_nums[1])
+            bbox = {"row_min": row, "row_max": row + h - 1,
+                    "col_min": col, "col_max": col + w - 1}
+        elif len(pos_nums) == 2:
+            row, col = int(pos_nums[0]), int(pos_nums[1])
+            bbox = {"row_min": row, "row_max": row,
+                    "col_min": col, "col_max": col}
 
         if bbox:
             obj["bbox"] = bbox

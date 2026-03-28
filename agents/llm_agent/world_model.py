@@ -110,6 +110,22 @@ class WorldModel:
         if obj_id in self._data["objects"]:
             self._data["objects"][obj_id].update(kwargs)
 
+    def rename_object(self, obj_id: str, new_name: str):
+        """object의 name 필드만 변경. id는 유지."""
+        if obj_id in self._data["objects"]:
+            self._data["objects"][obj_id]["name"] = new_name
+
+    def apply_renames(self, renamed_objects: dict):
+        """OBSERVE 결과의 renamed_objects 일괄 적용.
+        형식: {"obj_001": {"new_name": "exit", "reason": "..."}}
+        """
+        for obj_id, info in renamed_objects.items():
+            if not isinstance(info, dict):
+                continue
+            new_name = info.get("new_name") or info.get("name")
+            if new_name:
+                self.rename_object(obj_id, new_name)
+
     def get_object_center(self, obj_id: str) -> tuple[int, int] | None:
         """bbox에서 center 좌표 계산. (x, y) 반환."""
         obj = self._data["objects"].get(obj_id)
