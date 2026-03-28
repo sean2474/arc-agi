@@ -1,11 +1,45 @@
 """그리드 변환, diff 계산, 이미지 렌더링, 트리거 감지."""
 
 import io
+import re
 import base64
 from collections import Counter
 from arcengine import GameState
 
 from .const import ARC_COLORS
+
+
+def parse_bbox_from_obj(obj: dict) -> dict | None:
+    """VLM이 반환한 position/size 문자열 → bbox dict.
+    예: "rows 28-36, cols 30-34" → {row_min:28, row_max:36, col_min:30, col_max:34}
+    """
+    if "bbox" in obj and isinstance(obj["bbox"], dict):
+        return obj["bbox"]
+
+    pos = obj.get("position", "")
+    if not pos:
+        return None
+
+    nums = re.findall(r"\d+", pos)
+    if len(nums) >= 4:
+        return {"row_min": int(nums[0]), "row_max": int(nums[1]),
+                "col_min": int(nums[2]), "col_max": int(nums[3])}
+    if len(nums) == 2:
+        return {"row_min": int(nums[0]), "row_max": int(nums[0]),
+                "col_min": int(nums[1]), "col_max": int(nums[1])}
+    return None
+
+
+def enrich_objects_bbox(objects: dict) -> dict:
+    """scan/observe 결과 objects에 bbox 없으면 position 문자열로 채워넣기."""
+    for obj in objects.values():
+        if not isinstance(obj, dict):
+            continue
+        if "bbox" not in obj or not obj["bbox"]:
+            bbox = parse_bbox_from_obj(obj)
+            if bbox:
+                obj["bbox"] = bbox
+    return objects
 
 
 def frame_to_compact(frame) -> list[str]:

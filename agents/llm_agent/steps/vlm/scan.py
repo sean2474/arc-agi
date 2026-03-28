@@ -17,6 +17,7 @@ def do_scan(agent: LLMAgent, step: int, curr_grid: list[str], curr_levels: int) 
         levels_completed=curr_levels,
         win_levels=agent.game_info.get("win_levels", 0),
         step=step,
+        grid=curr_grid,
     )
     parsed = agent._call_vlm(msg, [img_b64], label="scan")
     if parsed is None:

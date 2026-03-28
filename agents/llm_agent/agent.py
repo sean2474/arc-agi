@@ -9,7 +9,7 @@ import functools
 
 from arcengine import GameAction, GameState
 
-from .grid_utils import frame_to_compact
+from .grid_utils import frame_to_compact, enrich_objects_bbox
 from .models import StepRecord
 from .world_model import WorldModel
 from .prompts import SYSTEM_PROMPT, parse_llm_response
@@ -136,9 +136,10 @@ class LLMAgent:
             print(f"  [SCAN]")
             scan_result = do_scan(self, step, curr_grid, curr_levels)
 
-            # objects merge
+            # objects merge (position 문자열 → bbox 변환 포함)
             scan_objects = scan_result.get("objects", {})
             if scan_objects and isinstance(scan_objects, dict):
+                enrich_objects_bbox(scan_objects)
                 self.world_model.merge_objects(scan_objects)
 
             # HYPOTHESIZE
