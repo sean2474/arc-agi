@@ -21,7 +21,7 @@ def do_decide(agent: LLMAgent, observe_result: dict) -> tuple[GameAction, str, s
     msg = build_decide_message(
         observe_result=observe_result,
         summary=agent.summary,
-        world_model=agent.world_model.to_dict(),
+        world_model=agent.world_model.to_prompt_dict(),
         reports=agent.reports,
         available_actions=agent.game_info.get("available_actions", []),
         hint=hint,

@@ -156,9 +156,20 @@ class LLMAgent:
             if game_type:
                 self.world_model.set_game_type(game_type.get("hypothesis", "unknown"), game_type.get("confidence", 0.3))
 
-            goal_hyp = hyp_result.get("goal_hypothesis", {})
-            if goal_hyp:
-                self.world_model.set_goal(goal_hyp.get("description", "unknown"), goal_hyp.get("confidence", 0.3))
+            for gh in hyp_result.get("goal_hypotheses", []):
+                if isinstance(gh, dict) and gh.get("description"):
+                    self.world_model.add_goal_hypothesis(
+                        gh["description"], gh.get("confidence", 0.3),
+                        gh.get("supporting_evidence"), gh.get("contradicting_evidence"),
+                    )
+
+            for rh in hyp_result.get("relationship_hypotheses", []):
+                if isinstance(rh, dict) and rh.get("subject_type") and rh.get("object_type"):
+                    self.world_model.add_relationship(
+                        rh["subject_type"], rh.get("relation", ""),
+                        rh["object_type"], rh.get("context", "any"),
+                        rh.get("interaction_result"), rh.get("confidence", 0.3),
+                    )
 
             self.world_model.update_phase()
 
@@ -220,6 +231,15 @@ class LLMAgent:
                     new_name = info.get("new_name") or info.get("name") if isinstance(info, dict) else None
                     if new_name:
                         print(f"  [RENAME] {obj_id} → {new_name}")
+
+            # relationship_updates 처리
+            for ru in observe_result.get("relationship_updates", []):
+                if isinstance(ru, dict) and ru.get("subject_type") and ru.get("object_type"):
+                    self.world_model.add_relationship(
+                        ru["subject_type"], ru.get("relation", ""),
+                        ru["object_type"], ru.get("context", "any"),
+                        ru.get("interaction_result"), ru.get("confidence", 0.7),
+                    )
 
             # EVALUATE
             print(f"  [EVALUATE]")

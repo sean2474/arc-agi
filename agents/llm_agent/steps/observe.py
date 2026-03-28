@@ -20,7 +20,7 @@ def do_observe(agent: LLMAgent, action_taken: str, goal: str, prev_grid: list[st
         after_img = grid_to_image_base64(curr_grid)
 
     msg = build_observe_message(
-        world_model=agent.world_model.to_dict(),
+        world_model=agent.world_model.to_prompt_dict(),
         action_taken=action_taken,
         goal=goal,
         diff_summary=diff_summary,

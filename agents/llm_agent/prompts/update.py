@@ -42,13 +42,17 @@ Update both the summary and world model. Respond in JSON:
       "object_name": {{"value": "...", "position": "...", "type": "unknown|static|dynamic|controllable", "interaction_tested": false}}
     }},
     "controllable": {{"description": "...", "confidence": 0.0}},
-    "goal": {{"description": "...", "confidence": 0.0}},
+    "goal_hypotheses": [
+      {{"description": "...", "confidence": 0.0, "supporting_evidence": [], "contradicting_evidence": []}}
+    ],
     "dangers": [],
     "interactions": [
       {{"subject": "...", "object": "...", "action": "...", "result": "...", "confidence": 0.0}}
     ],
-    "immediate_plan": "...",
-    "strategic_plan": "..."
+    "relationships": [
+      {{"subject_type": "name (shape, color)", "relation": "...", "object_type": "name (shape, color)", "context": "...", "interaction_result": null, "confidence": 0.0}}
+    ],
+    "plan": {{"description": "...", "confidence": 0.0}}
   }}
 }}
 
@@ -61,7 +65,11 @@ Rules:
   - Direction keys: if one tested, infer the other 3.
 - objects: update positions if they moved. Set type to "dynamic"/"static"/"controllable".
   Set interaction_tested=true after testing interaction with that object.
-- interactions: add successful interactions. Remove failed ones.
+- goal_hypotheses: update confidence based on evidence. Add supporting/contradicting evidence.
+  Raise confidence for hypotheses supported by this step's result. Lower for contradicted ones.
+- relationships: add/update if passive interaction observed. Use "name (shape, color)" for types.
+  Fill interaction_result once observed. Set confidence 0.7+ when confirmed.
+- interactions: add successful action-triggered interactions. Remove failed ones.
 - dangers: add if game_over occurred near an object.
-- immediate_plan / strategic_plan: update based on current phase progress.
+- plan: update based on top goal hypothesis and current phase.
 - Keep concise. This is the only context OBSERVE and DECIDE will see."""

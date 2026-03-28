@@ -45,10 +45,15 @@ Respond in JSON:
   "new_objects": {{}},
   "static_objects": [],
   "renamed_objects": {{}},
+  "relationship_updates": [
+    {{"subject_type": "name (shape, color)", "relation": "...", "object_type": "name (shape, color)", "context": "...", "interaction_result": "...", "confidence": 0.7}}
+  ],
   "contradictions": []
 }}
 
 renamed_objects format: {{"obj_001": {{"new_name": "exit", "reason": "..."}}}}
+relationship_updates: only fill if a passive event was observed (object disappeared, game_over triggered near object, etc.).
+  Use "name (shape, color)" format from the WORLD MODEL objects.
 
 Rules:
 - Do NOT re-analyze all objects. Focus on CHANGES only.

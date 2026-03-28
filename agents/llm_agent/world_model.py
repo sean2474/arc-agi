@@ -6,6 +6,7 @@ Action confidence: context-dependent.
 """
 
 import copy
+from collections import Counter
 from .const import ACTION_NUM_TO_NAME, get_current_phase
 
 
@@ -18,12 +19,12 @@ class WorldModel:
             "game_type": {"hypothesis": "unknown", "confidence": 0.0},
             "actions": {},
             "controllable": {"description": None, "confidence": 0.0},
-            "goal": {"description": None, "confidence": 0.0},
+            "goal_hypotheses": [],
             "objects": {},
             "dangers": [],
             "interactions": [],
-            "immediate_plan": {"description": "scan first frame", "confidence": 0.5},
-            "strategic_plan": {"description": "identify all objects on screen", "confidence": 0.5},
+            "relationships": [],
+            "plan": {"description": "scan first frame", "confidence": 0.5},
         }
 
     # ── Phase ──
@@ -144,13 +145,41 @@ class WorldModel:
     def set_controllable(self, description: str, confidence: float):
         self._data["controllable"] = {"description": description, "confidence": confidence}
 
-    # ── Goal ──
+    # ── Goal Hypotheses ──
 
-    def get_goal(self) -> dict:
-        return self._data["goal"]
+    def get_goal_hypotheses(self) -> list:
+        return self._data["goal_hypotheses"]
 
-    def set_goal(self, description: str, confidence: float):
-        self._data["goal"] = {"description": description, "confidence": confidence}
+    def get_top_goal_hypothesis(self) -> dict | None:
+        """confidence 가장 높은 goal hypothesis 반환."""
+        hyps = self._data["goal_hypotheses"]
+        if not hyps:
+            return None
+        return max(hyps, key=lambda h: h.get("confidence", 0.0))
+
+    def add_goal_hypothesis(self, description: str, confidence: float,
+                            supporting_evidence: list | None = None,
+                            contradicting_evidence: list | None = None):
+        """새 goal hypothesis 추가. 동일 description이면 update."""
+        for h in self._data["goal_hypotheses"]:
+            if h.get("description") == description:
+                h["confidence"] = confidence
+                if supporting_evidence:
+                    h.setdefault("supporting_evidence", []).extend(supporting_evidence)
+                if contradicting_evidence:
+                    h.setdefault("contradicting_evidence", []).extend(contradicting_evidence)
+                return
+        self._data["goal_hypotheses"].append({
+            "description": description,
+            "confidence": confidence,
+            "supporting_evidence": supporting_evidence or [],
+            "contradicting_evidence": contradicting_evidence or [],
+        })
+
+    def set_goal_hypotheses(self, hypotheses: list):
+        """LLM UPDATE 결과로 전체 교체."""
+        if isinstance(hypotheses, list):
+            self._data["goal_hypotheses"] = hypotheses
 
     # ── Dangers ──
 
@@ -168,19 +197,39 @@ class WorldModel:
     def add_interaction(self, interaction: dict):
         self._data["interactions"].append(interaction)
 
-    # ── Plans ──
+    # ── Relationships ──
 
-    def get_immediate_plan(self) -> dict:
-        return self._data["immediate_plan"]
+    def get_relationships(self) -> list:
+        return self._data["relationships"]
 
-    def set_immediate_plan(self, description: str, confidence: float):
-        self._data["immediate_plan"] = {"description": description, "confidence": confidence}
+    def add_relationship(self, subject_type: str, relation: str, object_type: str,
+                         context: str = "any", interaction_result=None, confidence: float = 0.3):
+        """새 relationship 추가. (subject_type, relation, object_type) 중복이면 update."""
+        for r in self._data["relationships"]:
+            if (r.get("subject_type") == subject_type
+                    and r.get("relation") == relation
+                    and r.get("object_type") == object_type):
+                r["context"] = context
+                r["confidence"] = confidence
+                if interaction_result is not None:
+                    r["interaction_result"] = interaction_result
+                return
+        self._data["relationships"].append({
+            "subject_type": subject_type,
+            "relation": relation,
+            "object_type": object_type,
+            "context": context,
+            "interaction_result": interaction_result,
+            "confidence": confidence,
+        })
 
-    def get_strategic_plan(self) -> dict:
-        return self._data["strategic_plan"]
+    # ── Plan ──
 
-    def set_strategic_plan(self, description: str, confidence: float):
-        self._data["strategic_plan"] = {"description": description, "confidence": confidence}
+    def get_plan(self) -> dict:
+        return self._data["plan"]
+
+    def set_plan(self, description: str, confidence: float):
+        self._data["plan"] = {"description": description, "confidence": confidence}
 
     # ── Game Type ──
 
@@ -199,7 +248,6 @@ class WorldModel:
         if "actions" in updated_wm:
             for name, action_data in updated_wm["actions"].items():
                 if name in self._data["actions"]:
-                    # effects merge
                     if "effects" in action_data:
                         for new_effect in action_data["effects"]:
                             self.add_action_effect(
@@ -214,7 +262,19 @@ class WorldModel:
         if "objects" in updated_wm:
             self.merge_objects(updated_wm["objects"])
 
-        skip = {"actions", "objects"}
+        if "goal_hypotheses" in updated_wm:
+            self.set_goal_hypotheses(updated_wm["goal_hypotheses"])
+
+        if "relationships" in updated_wm and isinstance(updated_wm["relationships"], list):
+            for r in updated_wm["relationships"]:
+                if isinstance(r, dict) and "subject_type" in r and "object_type" in r:
+                    self.add_relationship(
+                        r["subject_type"], r.get("relation", ""),
+                        r["object_type"], r.get("context", "any"),
+                        r.get("interaction_result"), r.get("confidence", 0.3),
+                    )
+
+        skip = {"actions", "objects", "goal_hypotheses", "relationships"}
         for k, v in updated_wm.items():
             if k not in skip and k in self._data:
                 self._data[k] = v
@@ -222,8 +282,9 @@ class WorldModel:
     # ── 레벨 전환 ──
 
     def reset_for_new_level(self):
-        prev_goal = self._data.get("goal", {}).get("description", "unknown")
         prev_objects = copy.deepcopy(self._data.get("objects", {}))
+        top_goal = self.get_top_goal_hypothesis()
+        prev_goal_desc = top_goal.get("description", "unknown") if top_goal else "unknown"
 
         self._data["phase"] = "static_observation"
         self._data["objects"] = {}
@@ -231,10 +292,25 @@ class WorldModel:
         # 이전 레벨 objects 지식 보존용 (SCAN 후 매칭에 사용)
         self._prev_level_objects = prev_objects
 
-        self._data["immediate_plan"] = {"description": "scan new level", "confidence": 0.5}
-        self._data["strategic_plan"] = {
-            "description": f"previous level cleared by: {prev_goal}. re-scan and apply similar strategy.",
-            "confidence": 0.4,
+        # goal_hypotheses: confidence 유지하되 evidence 초기화
+        for h in self._data["goal_hypotheses"]:
+            h["supporting_evidence"] = []
+            h["contradicting_evidence"] = []
+
+        # relationships: interaction_result 있는 것만 유지, 가설은 confidence 반감
+        kept = []
+        for r in self._data["relationships"]:
+            if r.get("interaction_result") is not None:
+                kept.append(r)
+            else:
+                r["confidence"] = r.get("confidence", 0.3) / 2
+                if r["confidence"] >= 0.1:
+                    kept.append(r)
+        self._data["relationships"] = kept
+
+        self._data["plan"] = {
+            "description": f"scan new level. previous goal: {prev_goal_desc}",
+            "confidence": 0.5,
         }
 
     def match_objects_from_prev_level(self, new_objects: dict) -> dict:
@@ -256,3 +332,24 @@ class WorldModel:
 
     def to_dict(self) -> dict:
         return copy.deepcopy(self._data)
+
+    def to_prompt_dict(self) -> dict:
+        """프롬프트용 직렬화. objects 키를 'name (shape, color)'로 변환."""
+        d = copy.deepcopy(self._data)
+        objects = d.get("objects", {})
+
+        base_keys: dict[str, str] = {}
+        for obj_id, obj in objects.items():
+            name = obj.get("name") or obj_id
+            shape = obj.get("shape", "?")
+            colors = obj.get("colors", [])
+            color = colors[0] if colors else obj.get("value", "?")
+            base_keys[obj_id] = f"{name} ({shape}, {color})"
+
+        counts = Counter(base_keys.values())
+        new_objects: dict = {}
+        for obj_id, base_key in base_keys.items():
+            key = f"{base_key} [{obj_id}]" if counts[base_key] > 1 else base_key
+            new_objects[key] = objects[obj_id]
+        d["objects"] = new_objects
+        return d

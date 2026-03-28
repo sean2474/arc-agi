@@ -33,7 +33,12 @@ Respond in JSON:
     "obj_id": {{"type_hypothesis": "...", "reasoning": "..."}}
   }},
   "game_type": {{"hypothesis": "...", "confidence": 0.3, "reasoning": "..."}},
-  "goal_hypothesis": {{"description": "...", "confidence": 0.3, "reasoning": "..."}},
+  "goal_hypotheses": [
+    {{"description": "...", "confidence": 0.3, "supporting_evidence": [], "contradicting_evidence": []}}
+  ],
+  "relationship_hypotheses": [
+    {{"subject_type": "name (shape, color)", "relation": "...", "object_type": "name (shape, color)", "context": "...", "interaction_result": null, "confidence": 0.3}}
+  ],
   "test_priority": ["action1", "action2"],
   "reasoning": "..."
 }}
@@ -41,4 +46,6 @@ Respond in JSON:
 Rules:
 - All hypotheses start at confidence 0.3 — nothing is confirmed yet.
 - Do NOT assume any specific game type. Consider all possibilities.
+- goal_hypotheses: list ALL plausible win conditions you can think of.
+- relationship_hypotheses: objects that look dangerous, activatable, or linked. Use "name (shape, color)" format.
 - test_priority: which actions to test first, ordered by expected information gain."""

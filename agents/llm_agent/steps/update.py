@@ -12,7 +12,7 @@ from ..prompts import build_update_message
 def do_update(agent: LLMAgent, evaluation: dict, discoveries: list[str], incident_result: dict | None = None):
     msg = build_update_message(
         summary=agent.summary,
-        world_model=agent.world_model.to_dict(),
+        world_model=agent.world_model.to_prompt_dict(),
         evaluation=evaluation,
         discoveries=discoveries,
         incident_result=incident_result,

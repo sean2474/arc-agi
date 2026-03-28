@@ -57,11 +57,13 @@ Phase 2~4 (매 스텝):
   - 게임 타입 추측 (네비게이션? 퍼즐? 클릭 기반? 패턴 매칭?)
   - win condition 초기 가설 (뭘 해야 이길 수 있을지)
   - 어떤 액션을 먼저 테스트해야 하는지 우선순위 제안
+  - 시각적 배치로 오브젝트 간 관계 초기 가설 수립 (`relationships`, confidence 0.3)
+    - 예: 이동 경로에 위치한 오브젝트 → "blocks or kills" 가설
   - 전부 confidence 낮음 (0.3) — 검증 전이므로
 - 하지 않는 일:
   - 액션 결정 (DECIDE의 역할)
   - 확정적 판단 — 전부 가설일 뿐
-- 출력: type_hypothesis 업데이트 + game_type 가설 + goal 가설 + 탐색 우선순위
+- 출력: type_hypothesis 업데이트 + game_type 가설 + goal 가설 + relationships 초기 가설 + 탐색 우선순위
 
 ---
 
@@ -77,10 +79,13 @@ Phase 2~4 (매 스텝):
   - 코드 diff 요약을 참고해서 어떤 오브젝트가 영향받았는지 판단
   - 움직인 것 = dynamic, 안 움직인 것 = static 분류
   - 새로 나타난 오브젝트 감지
+  - passive 이벤트 감지 → `relationships` 업데이트
+    - 예: 오브젝트 A 근처에서 game_over → A의 `interaction_result` 채움
+    - 예: 오브젝트 B에 올라갔더니 오브젝트 C가 사라짐 → 새 relationship 추가
 - 하지 않는 일:
   - 전체 프레임 분석 (SCAN의 역할)
   - 판단/의도 금지
-- 출력: changes + 오브젝트 분류 업데이트 + new_objects + contradictions
+- 출력: changes + 오브젝트 분류 업데이트 + new_objects + relationship_updates + contradictions
 
 VLM + 코드 diff 병행 이유:
 - VLM이 시각적 변화를 직관적으로 잡고
@@ -109,6 +114,9 @@ VLM + 코드 diff 병행 이유:
     - Phase 2 (action_discovery): untested action 테스트
     - Phase 3 (interaction_discovery): 오브젝트에 접근/작용 시도
     - Phase 4 (goal_execution): 목표 달성 전략 실행
+  - `relationships`를 참고해 위험 오브젝트 회피 + 유용한 오브젝트 우선 탐색
+    - `interaction_result: null`인 relationship → 테스트 대상 (info_gain 높음)
+    - 위험한 관계가 확인된 오브젝트 → 접근 시 risk 높음
   - goal + success_condition + failure_condition 명시
 - 하지 않는 일:
   - 여러 액션 한번에 출력 (항상 1개만)
@@ -151,6 +159,9 @@ VLM + 코드 diff 병행 이유:
   - action confidence 갱신 (테스트 결과 반영)
   - objects 상태 업데이트 (위치, type, interaction_tested)
   - interactions 추가/제거
+  - relationships 갱신
+    - OBSERVE에서 감지된 passive 이벤트 → `interaction_result` 채움, confidence 상승
+    - 반증된 relationship → confidence 낮춤 또는 제거
   - dangers 추가
   - 방향키: 1개 테스트 결과로 나머지 3개 추론
   - immediate_plan / strategic_plan 갱신
