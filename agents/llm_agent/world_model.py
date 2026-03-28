@@ -381,23 +381,15 @@ class WorldModel:
     def to_dict(self) -> dict:
         return copy.deepcopy(self._data)
 
+    _PROMPT_FIELDS = {"name", "shape", "colors", "position", "size", "type_hypothesis"}
+
     def to_prompt_dict(self) -> dict:
-        """프롬프트용 직렬화. objects 키를 'name (shape, color)'로 변환."""
+        """프롬프트용 직렬화. objects를 list로, 내부 필드(bbox/instance_id 등) 제거."""
         d = copy.deepcopy(self._data)
         objects = d.get("objects", {})
-
-        base_keys: dict[str, str] = {}
-        for obj_id, obj in objects.items():
-            name = obj.get("name") or obj_id
-            shape = obj.get("shape", "?")
-            colors = obj.get("colors", [])
-            color = colors[0] if colors else obj.get("value", "?")
-            base_keys[obj_id] = f"{name} ({shape}, {color})"
-
-        counts = Counter(base_keys.values())
-        new_objects: dict = {}
-        for obj_id, base_key in base_keys.items():
-            key = f"{base_key} [{obj_id}]" if counts[base_key] > 1 else base_key
-            new_objects[key] = objects[obj_id]
-        d["objects"] = new_objects
+        d["objects"] = [
+            {k: v for k, v in obj.items() if k in self._PROMPT_FIELDS}
+            for obj in objects.values()
+            if isinstance(obj, dict)
+        ]
         return d

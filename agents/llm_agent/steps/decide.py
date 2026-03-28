@@ -25,7 +25,7 @@ def do_decide(agent: LLMAgent, current_subgoal: dict, observe_result: dict, curr
     msg = build_decide_message(
         current_subgoal=current_subgoal,
         observe_result=observe_result,
-        objects=agent.world_model.to_prompt_dict().get("objects", {}),
+        objects=agent.world_model.to_prompt_dict().get("objects", []),
         available_actions=agent.game_info.get("available_actions", []),
         summary=agent.summary,
     )

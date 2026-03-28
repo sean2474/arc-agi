@@ -41,8 +41,8 @@ Respond in JSON:
 }}
 
 Rules:
-- action_sequence: 1–6 actions. [{actions_names}]. Click: ["click", "obj_id"].
+- action_sequence: 1-6 actions. [{actions_names}]. Click: ["click", "obj_name"] (use the object's name field).
 - reasoning: MUST include current positions of key objects and why you chose this path.
 - Do NOT include game goals or win conditions — only focus on achieving the current subgoal.
-- If the subgoal requires clicking: ["click", "obj_id"] counts as one action.
+- If the subgoal requires clicking: ["click", "obj_name"] counts as one action.
 """

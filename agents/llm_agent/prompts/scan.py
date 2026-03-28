@@ -34,23 +34,22 @@ STEP 2 - PATTERNS: What structures do you see?
 
 Respond in JSON:
 {{
-  "objects": {{
-    "obj_NNN": {{
+  "objects": [
+    {{
       "name": "role-based name",
       "shape": "square|rectangle|L-shape|...",
       "colors": ["hex1", "hex2"],
       "position": "row,col",
       "size": "HxW"
     }}
-  }},
+  ],
   "patterns": []
 }}
 
 Field rules:
-- "obj_NNN": use sequential IDs starting from obj_001.
 - "name": game-role name only.
   Do NOT use color or shape as name (e.g. "green_block" or "small_square" are WRONG).
-  If role is unknown, use "unknown_N" (e.g. "unknown_1").
+  If role is unknown, use "unknown_1", "unknown_2", etc.
 - "shape": visual shape only.
 - "colors": list of hex color values that make up this object. Single-color objects have 1 element.
 - "position": "row,col" top-left corner, 0-indexed. MUST be within grid bounds.

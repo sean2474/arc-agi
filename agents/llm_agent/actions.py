@@ -28,10 +28,24 @@ def _parse_position(pos_str: str) -> tuple[int, int] | None:
 
 
 def resolve_click_object(object_name: str, world_model: dict) -> tuple[int, int] | None:
-    """object 이름 → 좌표. world_model.objects에서 position 조회."""
-    obj = world_model.get("objects", {}).get(object_name)
+    """object 이름 → 좌표. name 필드로 검색, fallback으로 bbox center."""
+    objects = world_model.get("objects", {})
+    # obj_NNN 직접 키 시도 (하위호환)
+    obj = objects.get(object_name)
+    if not obj:
+        # name 필드로 검색
+        for v in objects.values():
+            if isinstance(v, dict) and v.get("name") == object_name:
+                obj = v
+                break
     if not obj:
         return None
+    # bbox center 우선, position 문자열 fallback
+    bbox = obj.get("bbox")
+    if bbox:
+        x = (bbox.get("col_min", 0) + bbox.get("col_max", 0)) // 2
+        y = (bbox.get("row_min", 0) + bbox.get("row_max", 0)) // 2
+        return (x, y)
     return _parse_position(obj.get("position", ""))
 
 

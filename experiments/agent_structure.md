@@ -45,7 +45,7 @@ Phase 2~4 (시퀀스 실행 중일 때):
 
 | Phase | 순서 | 호출 | 모델 | 역할 |
 |-------|------|------|------|------|
-| **Phase 1** | 1 | SCAN | VLM+이미지 | 이미지로 전체 프레임 분석. objects + position 추출. 코드가 value로 그리드 스캔해 bbox 계산. |
+| **Phase 1** | 1 | SCAN | VLM+이미지 | 이미지로 전체 프레임 분석. LLM이 objects **배열** 반환 → 코드가 obj_NNN 키 부여 + bbox 계산. 코너/엣지 오브젝트는 HUD로 분류. |
 | **Phase 1** | 2 | HYPOTHESIZE | VLM | 초기 가설 수립. 오브젝트 역할/게임타입/목표 추측. |
 | **Phase 1** | 3 | UPDATE | VLM | objects + 가설을 world_model에 저장. |
 | **Phase 2~4** | 1 | PLANNER | 코드 | plans 리스트에서 pending 중 가장 우선 plan 선택. status → active. |
@@ -90,3 +90,5 @@ game_over 또는 level_complete 시에만 호출.
 - JSON 구조만 "..."로
 - 게임 유형을 가정하는 용어 금지
 - goal이 좌표라는 가정 금지
+- SCAN: LLM이 objects list 반환, 코드가 obj_NNN 키 부여 (LLM ID 관리 부담 제거)
+- HUD: 코너/엣지 오브젝트 → step_counter/score/hud 라벨. 액션 대상 제외

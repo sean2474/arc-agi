@@ -38,7 +38,7 @@ class LLMAgent:
         api_base: str = "http://localhost:8080/v1",
     ):
         import openai
-        self.client = openai.OpenAI(base_url=api_base, api_key="local")
+        self.client = openai.OpenAI(base_url=api_base, api_key="local", timeout=300.0)
         self.model = model
         self.name = name
 
@@ -71,7 +71,7 @@ class LLMAgent:
 
     # ── 모델 호출 래퍼 ──
 
-    def _call_vlm(self, text: str, images_b64: list[str] = [], retries: int = 3, label: str = "") -> dict | None:
+    def _call_vlm(self, text: str, images_b64: list[str] = [], retries: int = 3, label: str = "", thinking_budget: int | None = None) -> dict | None:
         """VLM 호출. images_b64가 비어있으면 텍스트만 전달."""
         if label:
             self._step_prompts[label] = text
@@ -93,6 +93,8 @@ class LLMAgent:
                         {"role": "user", "content": content},
                     ],
                 }
+                if thinking_budget is not None:
+                    kwargs["extra_body"] = {"thinking_budget": thinking_budget}
                 response = self.client.chat.completions.create(**kwargs)
                 self.llm_call_count += 1
                 usage = response.usage
