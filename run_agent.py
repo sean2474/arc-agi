@@ -239,6 +239,9 @@ def run_game(game_id: str, agent: LLMAgent, max_steps: int, data_dir: str, save_
 
         # 액션 실행
         action_data = getattr(agent, "last_action_data", {}) or {}
+        if action == GameAction.ACTION6 and not action_data:
+            print("  [WARN] ACTION6 without coordinates — skipping")
+            continue
         obs = env.step(action, data=action_data if action_data else None)
 
         # game_over → 자동 리셋

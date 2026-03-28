@@ -73,6 +73,8 @@ def action_to_gameaction(item, available_values: set[int], world_model: dict | N
         val = ACTION_NAME_TO_NUM.get(item.lower())
         if val is None:
             return None
+        if val == 6:  # click without coordinates is invalid
+            return None
     else:
         val = int(item)
 
