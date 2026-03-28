@@ -108,6 +108,16 @@ class LLMAgent:
                 if label:
                     self._step_responses[label] = raw_text
 
+                # thinking 디버그: <think> 블록 토큰 vs 출력 토큰 비교
+                if thinking_budget is not None:
+                    think_end = raw_text.find("</think>")
+                    think_len = think_end + len("</think>") if think_end != -1 else 0
+                    output_len = len(raw_text) - think_len
+                    completion_tok = usage.completion_tokens if usage else "?"
+                    print(f"  [THINKING_DEBUG] completion_tokens={completion_tok} | "
+                          f"<think> chars={think_len} | output chars={output_len} | "
+                          f"think_closed={'yes' if think_end != -1 else 'NO - truncated'}")
+
                 parsed = parse_llm_response(raw_text)
                 if parsed is None:
                     print(f"  [PARSE_FAIL] raw (first 500):")

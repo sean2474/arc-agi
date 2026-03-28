@@ -19,7 +19,7 @@ def do_scan(agent: LLMAgent, step: int, curr_grid: list[str], curr_levels: int) 
         step=step,
         grid=curr_grid,
     )
-    parsed = agent._call_vlm(msg, [img_b64], label="scan", thinking_budget=4096)
+    parsed = agent._call_vlm(msg, [img_b64], label="scan", thinking_budget=4096, max_tokens=8192)
     if parsed is None:
         raise RuntimeError("SCAN: VLM returned None (parse failed)")
     # LLM이 list로 반환한 경우 obj_NNN dict로 변환
