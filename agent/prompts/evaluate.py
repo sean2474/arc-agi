@@ -29,7 +29,7 @@ SEQUENCE RESULT
   failure_condition: "{failure_condition}"
   planned: {planned_sequence}
   executed: {executed_actions}
-  abort_reason: {abort_reason or "null (completed normally)"}
+  {f"abort_reason: {abort_reason}" if abort_reason else ""}
 
 OBSERVATION (from visual analysis of before/after frames)
 {observe_str}

@@ -17,7 +17,7 @@
 
 | 역할 | 모델 | 용도 |
 |------|------|------|
-| VLM | Qwen2.5-VL-7B | SCAN(이름/역할만), HYPOTHESIZE, OBSERVE, DECIDE, UPDATE, INCIDENT |
+| VLM | Qwen2.5-VL-7B | SCAN(이름/역할만), HYPOTHESIZE, OBSERVE, DECIDE, EVALUATE, UPDATE, INCIDENT |
 | 코드 | Python | blob 추출, diff 계산, 이벤트 감지, 카메라 추적, PLANNER, ANALYZE, 자동 재분류 |
 
 단일 VLM 구조. SCAN/DECIDE/REDEFINE은 이미지+텍스트, 나머지는 텍스트만. 32GB VRAM 제약.
@@ -35,13 +35,13 @@ Phase 2~4 (시퀀스 실행 중이 아닐 때):
   → [코드] blob diff + 이벤트 감지
       ├─ split/merge/appear → REDEFINE(VLM: 영향 blob만)
       └─ disappear         → is_present=false (코드)
-  → ANALYZE(코드: pending_sequence 기반) → UPDATE(VLM)
+  → ANALYZE(코드: pending_sequence 기반) → OBSERVE(VLM) → EVALUATE(VLM) → UPDATE(VLM)
 
 Phase 2~4 (시퀀스 실행 중일 때):
   EXECUTE → [코드] diff+이벤트 → 자동 재분류
   → ANALYZE(코드)
   ├─ pending_sequence 있음: 다음 action 실행
-  └─ pending_sequence 없음: mark_plan(done) → UPDATE(VLM) → PLANNER → DECIDE
+  └─ pending_sequence 없음: mark_plan(done) → OBSERVE → EVALUATE → UPDATE → PLANNER → DECIDE
 ```
 
 ### 호출 순서
@@ -58,8 +58,10 @@ Phase 2~4 (시퀀스 실행 중일 때):
 | **Phase 2~4** | 4 | diff+이벤트 | 코드 | 각 애니메이션 프레임 쌍마다: (1) 카메라 shift 감지(SSE) → (2) blob bbox 보정 → (3) 오브젝트 이동 delta 계산. 이벤트 merge 후 ANALYZE에 전달. |
 | **Phase 2** | 5 | REDEFINE | VLM+이미지 | split/merge/appear 시만. 영향 blob의 name/type_hypothesis 재부여. |
 | **Phase 2** | 5.5 | 자동 재분류 | 코드 | move 이벤트 발생한 blob 중 type=unknown/obstacle → controllable 자동 재분류. |
-| **Phase 2** | 6 | ANALYZE | 코드 | `pending_sequence` 남아있으면 continue(next action), 비었으면 done → mark_plan + UPDATE. VLM 호출 없음. |
-| **Phase 2** | 7 | UPDATE | VLM | abort/success 시만. world_model + plans 갱신. |
+| **Phase 2** | 6 | ANALYZE | 코드 | `pending_sequence` 남아있으면 continue(next action), 비었으면 done → mark_plan + OBSERVE. VLM 호출 없음. |
+| **Phase 2** | 7 | OBSERVE | VLM | before/after 이미지 비교. 이벤트 없고 이미지 동일 시 NO-CHANGE SHORTCUT으로 즉시 반환. |
+| **Phase 2** | 8 | EVALUATE | VLM | observe_result + current_subgoal → goal_achieved, reasoning, key_learnings, new_discoveries 반환. |
+| **Phase 2** | 9 | UPDATE | VLM | EVALUATE 결과 + discoveries → world_model + summary 갱신. |
 
 ## PLANNER
 
@@ -68,10 +70,10 @@ pending 없으면 UPDATE에서 새 plan 생성 트리거.
 
 ## DECIDE
 
-입력: `current_subgoal` + objects(bbox 포함) + 이미지.
+입력: `current_subgoal` + objects(bbox 포함) + 이미지 + **ACTION HISTORY** (최근 20 스텝 `action → observation`).
 **game goal / goal_hypotheses 없음** — 순수 경로/상호작용 계획만.
-출력: `action_sequence` (최대 6개) + **`desired_event`** (코드 ANALYZE가 검증할 기대 이벤트).
-click: `["click", "obj_name"]` 형식. `"click"` 단독 문자열 금지.
+출력: `action_sequence` (최대 6개).
+click: **`["click", "obj_id"]`** 형식 (`obj_003` 등 instance_id 사용). `"click"` 단독 문자열 금지. name 사용 금지.
 
 ## ANALYZE (코드, VLM 호출 없음)
 
@@ -82,9 +84,15 @@ click: `["click", "obj_name"]` 형식. `"click"` 단독 문자열 금지.
 | `pending_sequence` 항목 남아있음 | continue — 다음 action 실행 |
 | `pending_sequence` 비어있음 | done — `mark_plan(done)` → UPDATE → PLANNER → DECIDE |
 
+## EVALUATE
+
+시퀀스 완료 시 OBSERVE 직후 호출.
+입력: observe_result + current_subgoal (description, success_condition, failure_condition) + planned_sequence.
+출력: `goal_achieved`, `reasoning`, `key_learnings`, `new_discoveries`.
+
 ## UPDATE
 
-시퀀스 완료(done) 시 호출. INCIDENT 결과도 함께 전달.
+EVALUATE 직후 호출. EVALUATE 결과(evaluation) + discoveries + INCIDENT 결과 함께 전달.
 `plans` 갱신: abort → plan 수정 또는 새 plan 추가. success → done 마킹.
 
 ## INCIDENT

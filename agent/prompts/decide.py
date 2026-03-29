@@ -28,12 +28,12 @@ def build_decide_message(
     non_click = [ACTION_NUM_TO_NAME.get(a["value"], "?") for a in available_actions if ACTION_NUM_TO_NAME.get(a["value"]) != "click"]
     sample = non_click[:2]
     if has_click:
-        sample.append('["click", "obj_001"]')
+        sample.append('["click", "obj_XYZ"]')
     seq_example = "[" + ", ".join(f'"{s}"' if not s.startswith("[") else s for s in sample) + "]"
 
     click_rule = (
         '  - Click action: ALWAYS ["click", "obj_id"] — use the obj_id key from KNOWN OBJECTS (e.g. "obj_003").\n'
-        '    When exploring with no clear target, pick any obj_id to test.\n'
+        '    When exploring, pick an obj_id you have NOT already tried or that did not result in "no changes observed".\n'
         '  - NEVER write "click" as a plain string.'
     ) if has_click else (
         ''
@@ -89,4 +89,5 @@ Rules:
 {click_rule}
 - reasoning: MUST include current positions of key objects and why you chose this path.
 - goal: Focus on achieving goal.
+- Do NOT repeat an action that already appears in ACTION HISTORY with "no changes observed" result. Choose a different target or action.
 """

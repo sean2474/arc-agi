@@ -6,7 +6,7 @@
 
 | 역할 | 모델 | 용도 |
 |------|------|------|
-| VLM | Qwen2.5-VL-7B | SCAN(이름/역할 부여), HYPOTHESIZE, OBSERVE, DECIDE, UPDATE, INCIDENT |
+| VLM | Qwen2.5-VL-7B | SCAN(이름/역할 부여), HYPOTHESIZE, OBSERVE, DECIDE, EVALUATE, UPDATE, INCIDENT |
 
 VLM은 이미지도, 텍스트만도 처리 가능. SCAN/DECIDE/REDEFINE에 이미지 추가 전달.
 코드가 blob 추출 + diff 계산을 담당 → VLM은 의미론적 해석만.
@@ -20,10 +20,12 @@ Phase 1 (첫 프레임):
 
 Phase 2 (매 스텝):
   DECIDE(VLM+이미지) → EXECUTE
-  → OBSERVE(코드) blob diff + 이벤트 감지
+  → [코드] blob diff + 이벤트 감지
       ├─ split/merge/appear → REDEFINE(VLM: 영향 blob만)
       └─ disappear → is_present=false
-  → ANALYZE(코드: pending_sequence 기반) → UPDATE(VLM)
+  → ANALYZE(코드: pending_sequence 기반)
+      ├─ pending 있음: 다음 action 실행
+      └─ 빗: OBSERVE(VLM) → EVALUATE(VLM) → UPDATE(VLM) → PLANNER → DECIDE
 ```
 
 ---
@@ -120,47 +122,30 @@ move 이벤트가 발생한 blob 중 `type_hypothesis`가 `unknown` 또는 `obst
 
 ## DECIDE (VLM + 이미지)
 
-- 입력: `current_subgoal` + objects(bbox 포함, 같은 색상/모양이어도 좌표로 구분) + **bbox 어노테이션 이미지**
+- 입력: `current_subgoal` + objects(bbox 포함) + **bbox 어노테이션 이미지** + **ACTION HISTORY** (최근 20 스텝 `action → observation`)
 - 목적: 서브골 달성을 위한 **action sequence** 계획
 - **game goal / goal_hypotheses / reports 입력 없음** — 순수 경로/상호작용 계획만
 - 하는 일:
   - 이미지와 object 위치를 보고 경로 계산
     - 예: player(3,5) → target(3,10), 중간 벽(col 7) → 우회 경로
   - 최대 6개 action의 sequence 계획
-  - 각 action의 기대 효과 추론
 - 하지 않는 일:
   - 게임 목표 판단 (Planner의 역할)
-  - 1개 초과 sequence 금지 → 최대 6개
 - 출력:
   ```json
   {
     "reasoning": "player at (3,5), target at (3,10), wall at col 7. detour: right×2, down×1, right×2",
-    "action_sequence": ["right", "right", "down", "right", "right"],
-    "desired_event": {"type": "move", "obj": "obj_001"},
-    "subgoal": "reach blue object at (3,10)"
+    "action_sequence": ["right", "right", "down", "right", "right"]
   }
   ```
-  click 액션 예시:
+  click 액세 예시:
   ```json
   {
     "reasoning": "need to click on platform",
-    "action_sequence": [["click", "platform"]],
-    "desired_event": {"type": "transform", "obj": "obj_004"},
-    "subgoal": "activate platform"
+    "action_sequence": [["click", "obj_004"]]
   }
   ```
-  - click 아이템은 **배열** `["click", "obj_name"]` 형식. `"click"` 단독 문자열 → `RuntimeError`
-
-### desired_event 타입
-
-| 타입 | 의미 |
-|------|------|
-| `move` | obj가 이동함 |
-| `appear` | obj가 등장함 |
-| `disappear` | obj가 소멸함 (수집 등) |
-| `collide` | obj_a와 obj_b가 접촉 |
-| `transform` | obj가 모양/색상 변화 |
-| `any_change` | obj에 어떤 변화든 (탐색형이 아닌 경우 기본값) |
+  - click 아이템은 **배열** `["click", "obj_id"]` 형식. **instance_id(`obj_NNN`) 사용** — name 사용 금지. `"click"` 단독 문자열 → `RuntimeError`
 
 ---
 
@@ -229,13 +214,23 @@ appear / disappear / collide → 발생한 프레임 시점에 기록
 | 조건 | 결과 |
 |------|------|
 | `pending_sequence` 항목 남아있음 | continue — 다음 action 팬 후 실행 |
-| `pending_sequence` 비어있음 | done — `mark_plan(done)` → UPDATE → PLANNER → DECIDE |
+| `pending_sequence` 비어있음 | done — `mark_plan(done)` → OBSERVE → EVALUATE → UPDATE → PLANNER → DECIDE |
 
 ---
 
+## EVALUATE
+
+- 시퀀스 완료 시 OBSERVE 직후 호출.
+- 입력: `observe_result` + `current_subgoal`(description, success_condition, failure_condition) + `planned_sequence` + (INCIDENT 결과)
+- 하는 일:
+  - OBSERVE 결과를 기반으로 goal 달성 여부 판단
+  - 예상 외 현상 보고
+  - 한 혁수에서 배운 점 key_learnings 정리
+- 출력: `goal_achieved`, `goal_evaluation`, `confidence`, `new_discoveries`, `report`(key_learnings 포함)
+
 ## UPDATE
 
-- 입력: world_model + ANALYZE discoveries + (INCIDENT 결과)
+- 입력: world_model + EVALUATE `evaluation` + `discoveries` + (INCIDENT 결과)
 - 목적: world_model과 summary를 갱신
 - 하는 일:
   - action confidence 갱신 (테스트 결과 반영)

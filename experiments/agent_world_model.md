@@ -265,7 +265,7 @@ VLM이 `subject_name`/`object_name`으로 name을 반환하면, 코드가 `_reso
 ## click+object
 
 click은 좌표가 아니라 **object instance_id**를 대상으로 동작.
-DECIDE가 ["click", "obj_003"] 형태로 반환하면, 코드가 bbox의 center를 계산해서 실제 좌표로 변환.
+DECIDE가 `["click", "obj_003"]` 형태(이름 아닌 **obj_id**))로 반환하면, 코드가 bbox의 center를 계산해서 실제 좌표로 변환.
 click으로 interaction 확인 시:
 - objects.obj_003.clickable = true
 - interactions에 추가
@@ -293,7 +293,7 @@ click으로 interaction 확인 시:
 ```
 
 - 처음엔 모든 가설 confidence 0.3 이하
-- EVALUATE/UPDATE에서 각 가설의 supporting/contradicting evidence 갱신
+- EVALUATE 결과를 UPDATE에 전달 → 각 가설의 supporting/contradicting evidence 갱신
 - confidence 가장 높은 가설이 현재 active goal → DECIDE의 progress 계산 기준
 - 완전히 반증된 가설은 제거 (confidence 0.0)
 
@@ -323,7 +323,7 @@ click으로 interaction 확인 시:
 - **status**: `pending` → `active` → `done` / `failed`
 - **priority**: 낮을수록 우선 (1이 가장 높음)
 - Planner는 `status=pending`인 것 중 가장 낮은 priority 숫자 선택
-- UPDATE가 `plans` 항목 추가/수정. Action Analyzer가 `done`/`failed` 마킹.
+- UPDATE가 `plans` 항목 추가/수정. ANALYZE(코드)가 `done`/`failed` 마킹.
 
 ## 레벨 전환
 
