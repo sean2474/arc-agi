@@ -287,6 +287,14 @@ class BlobManager:
                           if e["type"] in ("camera_shift", "camera_rotation")]
             frame_events.append(events)
 
+            # 카메라 이동이 막 시작된 프레임: 직전 프레임의 cause=unknown disappear 소급 제거.
+            # 캐릭터가 카메라 스크롤 직전에 화면 끝으로 이동해서 임시로 사라지는 오탐 방지.
+            if is_camera_moving and len(frame_events) >= 2:
+                frame_events[-2] = [
+                    ev for ev in frame_events[-2]
+                    if not (ev["type"] == "disappear" and ev.get("cause") == "unknown")
+                ]
+
             pairs, unmatched_prev, unmatched_curr = match_blobs(corrected, curr_raw)
 
             # Co-movement merge detection — camera 이동 중에는 스킵 (false merge 방지)

@@ -268,25 +268,34 @@ def format_events_for_prompt(animation_events: list[dict], result_events: list[d
     """BlobManager events → LLM 프롬프트용 텍스트."""
     lines = []
 
+    def _label(ev: dict, key: str = "obj", name_key: str = "name") -> str:
+        oid = ev.get(key, "?")
+        name = ev.get(name_key, "")
+        return f"{oid}({name})" if name and name != oid else oid
+
     def _fmt(ev: dict) -> str | None:
         t = ev.get("type", "")
         f = ev.get("frame", "?")
         if t == "move":
             dr, dc = ev.get("delta", [0, 0])
-            return f"  move       {ev.get('obj','?')} Δ({dr:+d},{dc:+d}) f{f}"
+            return f"  move       {_label(ev)} Δ({dr:+d},{dc:+d}) f{f}"
         if t == "collide":
-            return f"  collide    {ev.get('obj_a','?')} × {ev.get('obj_b','?')} f{f}"
+            a = _label(ev, "obj_a", "name_a")
+            b = _label(ev, "obj_b", "name_b")
+            return f"  collide    {a} × {b} f{f}"
         if t == "disappear":
-            return f"  disappear  {ev.get('obj','?')} cause={ev.get('cause','?')} f{f}"
+            return f"  disappear  {_label(ev)} cause={ev.get('cause','?')} f{f}"
         if t == "appear":
             pos = ev.get("pos", ev.get("last_pos", ["?", "?"]))
-            return f"  appear     {ev.get('obj','?')} at ({pos[0]},{pos[1]}) f{f}"
+            return f"  appear     {_label(ev)} at ({pos[0]},{pos[1]}) f{f}"
         if t == "rotation":
-            return f"  rotation   {ev.get('obj','?')} {ev.get('angle_deg','?')}° f{f}"
+            return f"  rotation   {_label(ev)} {ev.get('angle_deg','?')}° f{f}"
         if t == "transform":
-            return f"  transform  {ev.get('obj','?')} color_diff={ev.get('color_diff',0):.2f} f{f}"
+            return f"  transform  {_label(ev)} color_diff={ev.get('color_diff',0):.2f} f{f}"
         if t == "merge":
-            return f"  merge      {ev.get('obj_a','?')} + {ev.get('obj_b','?')} f{f}"
+            a = _label(ev, "obj_a", "name_a")
+            b = _label(ev, "obj_b", "name_b")
+            return f"  merge      {a} + {b} f{f}"
         if t == "camera_shift":
             d = ev.get("delta", [0, 0])
             return f"  camera     Δ({d[0]:+d},{d[1]:+d}) f{f}"

@@ -53,7 +53,8 @@ def detect_frame_events(
         if abs(moved_dr) > 1 or abs(moved_dc) > 1:
             events.append({
                 "type": "move",
-                "obj": pb.name or pid,
+                "obj": pid,
+                "name": pb.name or pid,
                 "delta": [moved_dr, moved_dc],
                 "from": list(pc),
                 "to": list(cc),
@@ -91,14 +92,16 @@ def detect_frame_events(
             if result["kind"] == "rotation":
                 events.append({
                     "type": "rotation",
-                    "obj": pb.name or pid,
+                    "obj": pid,
+                    "name": pb.name or pid,
                     "angle_deg": result["angle_deg"],
                     "frame": frame_idx,
                 })
             else:
                 events.append({
                     "type": "transform",
-                    "obj": pb.name or pid,
+                    "obj": pid,
+                    "name": pb.name or pid,
                     "color_diff": result["color_diff"],
                     "frame": frame_idx,
                 })
@@ -155,15 +158,18 @@ def detect_frame_events(
                         pb_cov = prev_blobs.get(prev_cover)
                         events.append({
                             "type": "collide",
-                            "obj_a": (pb_cov.name if pb_cov and pb_cov.name else prev_cover),
-                            "obj_b": (pb.name if pb.name else pid),
+                            "obj_a": prev_cover,
+                            "name_a": (pb_cov.name if pb_cov and pb_cov.name else prev_cover),
+                            "obj_b": pid,
+                            "name_b": (pb.name if pb.name else pid),
                             "frame": frame_idx,
                         })
                 break
         if emit_disappear and cause != "covered":
             events.append({
                 "type": "disappear",
-                "obj": pb.name or pid,
+                "obj": pid,
+                "name": pb.name or pid,
                 "last_pos": list(pb.center()),
                 "cause": cause,
                 "frame": frame_idx,
@@ -192,7 +198,8 @@ def detect_frame_events(
             continue
         events.append({
             "type": "appear",
-            "obj": cb.name or cid,
+            "obj": cid,
+            "name": cb.name or cid,
             "pos": list(cb.center()),
             "frame": frame_idx,
         })
@@ -216,8 +223,10 @@ def detect_frame_events(
                 pb_b = prev_blobs.get(prev_b)
                 events.append({
                     "type": "collide",
-                    "obj_a": (pb_a.name if pb_a and pb_a.name else prev_a),
-                    "obj_b": (pb_b.name if pb_b and pb_b.name else prev_b),
+                    "obj_a": prev_a,
+                    "name_a": (pb_a.name if pb_a and pb_a.name else prev_a),
+                    "obj_b": prev_b,
+                    "name_b": (pb_b.name if pb_b and pb_b.name else prev_b),
                     "frame": frame_idx,
                 })
 
@@ -260,14 +269,16 @@ def detect_transform_rotation(
         if result["kind"] == "rotation":
             events.append({
                 "type": "rotation",
-                "obj": pb.name or pid,
+                "obj": pid,
+                "name": pb.name or pid,
                 "angle_deg": result["angle_deg"],
                 "frame": frame_idx,
             })
         else:
             events.append({
                 "type": "transform",
-                "obj": pb.name or pid,
+                "obj": pid,
+                "name": pb.name or pid,
                 "color_diff": result["color_diff"],
                 "frame": frame_idx,
             })

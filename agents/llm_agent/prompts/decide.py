@@ -23,10 +23,11 @@ def build_decide_message(
     actions_names = _actions_as_names(available_actions)
     has_click = _has_click(available_actions)
 
-    seq_example = '["right", "down", ["click", "obj_name"]]' if has_click else '["right", "down", "up"]'
+    seq_example = '["right", "down", ["click", "obj_001"]]' if has_click else '["right", "down", "up"]'
     click_rule = (
-        '  - Click action: a 2-element array — ["click", "name_of_object"] where name matches an object\'s "name" field above.\n'
-        '  - NEVER write "click" as a plain string. It is ALWAYS ["click", "obj_name"].'
+        '  - Click action: a 2-element array — ["click", "obj_id"] using the key from KNOWN OBJECTS (e.g. "obj_001").\n'
+        '    Prefer obj_id over name to avoid ambiguity when multiple objects share the same name.\n'
+        '  - NEVER write "click" as a plain string. It is ALWAYS ["click", "obj_id"].'
     ) if has_click else (
         '  - Do NOT use click — it is not available in this game.'
     )

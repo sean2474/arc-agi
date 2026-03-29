@@ -242,17 +242,8 @@ class LLMAgent:
             is_game_over = curr_state == GameState.GAME_OVER
             is_level_complete = curr_levels > self.prev_levels
 
-            # INCIDENT
-            if is_game_over or is_level_complete:
-                label = "DEATH" if is_game_over else "WIN"
-                print(f"  [INCIDENT] {label}")
-                incident_result = do_incident(self, curr_grid, is_game_over, is_level_complete, self.prev_levels, curr_levels)
-
-            if is_level_complete:
-                self.world_model.reset_for_new_level()
-                self.pending_sequence = []
-
-            # BlobManager step (animation frames 전달)
+            # BlobManager step (INCIDENT보다 먼저 — level_transition_info 필요)
+            level_transition_info = None
             if self._blob_manager is not None:
                 anim_frames = [frame_to_compact(f) for f in obs.frame]
                 anim_ev, result_ev, _lvl = self._blob_manager.step(
@@ -260,7 +251,32 @@ class LLMAgent:
                 )
                 self._last_anim_events = anim_ev
                 self._last_result_events = result_ev
+                level_transition_info = _lvl
+
+                # 코드 자동 재분류: 이동한 blob이 unknown/obstacle이면 controllable로 업데이트
+                moved_ids = {ev["obj"] for ev in anim_ev if ev.get("type") == "move"}
+                for oid in moved_ids:
+                    blob = self._blob_manager.blobs.get(oid)
+                    if blob and blob.type_hypothesis in ("unknown", "obstacle", "static", None, ""):
+                        old = blob.type_hypothesis or "unknown"
+                        blob.type_hypothesis = "controllable"
+                        print(f"  [AUTO-RECLASSIFY] {oid}({blob.name or oid}): {old} → controllable")
+
                 self.world_model.sync_from_blobs(self._blob_manager.blobs)
+
+            # INCIDENT
+            if is_game_over or is_level_complete:
+                label = "DEATH" if is_game_over else "WIN"
+                print(f"  [INCIDENT] {label}")
+                incident_result = do_incident(
+                    self, curr_grid, is_game_over, is_level_complete,
+                    self.prev_levels, curr_levels,
+                    level_transition_info=level_transition_info if is_level_complete else None,
+                )
+
+            if is_level_complete:
+                self.world_model.reset_for_new_level()
+                self.pending_sequence = []
 
             # OBSERVE
             print("  [OBSERVE]")
