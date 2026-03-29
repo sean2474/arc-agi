@@ -16,9 +16,6 @@ def get_current_phase(world_model: dict) -> str:
     actions = world_model.get("actions", {})
     goal_hypotheses = world_model.get("goal_hypotheses", [])
 
-    if not objects:
-        return "static_observation"
-
     # untested action 체크
     untested_actions = any(
         _get_action_max_confidence(a) == 0.0
@@ -49,9 +46,6 @@ def get_phase_hint(world_model: dict) -> str:
     phase = get_current_phase(world_model)
     actions = world_model.get("actions", {})
     objects = world_model.get("objects", {})
-
-    if phase == "static_observation":
-        return "Phase: STATIC_OBSERVATION. Scan first."
 
     if phase == "action_discovery":
         untested = [k for k, v in actions.items() if _get_action_max_confidence(v) == 0.0]

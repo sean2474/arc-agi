@@ -3,6 +3,33 @@
 from __future__ import annotations
 
 
+def merge_remap(events: list[dict]) -> list[dict]:
+    """merge 이벤트 제거: obj_b 이벤트를 obj_a로 귀속, merge 이벤트 자체는 제거."""
+    remap: dict[str, str] = {}
+    for ev in events:
+        if ev.get("type") == "merge" and ev.get("obj_a") and ev.get("obj_b"):
+            remap[ev["obj_b"]] = ev["obj_a"]
+
+    if not remap:
+        return events
+
+    result: list[dict] = []
+    seen_move: set[tuple] = set()
+    for ev in events:
+        if ev.get("type") == "merge":
+            continue
+        obj = ev.get("obj")
+        if obj in remap:
+            ev = dict(ev, obj=remap[obj])
+        if ev.get("type") == "move":
+            key = (ev["obj"], tuple(ev.get("delta", [])))
+            if key in seen_move:
+                continue
+            seen_move.add(key)
+        result.append(ev)
+    return result
+
+
 def _same_direction(d1: list, d2: list) -> bool:
     """True if d2 does not reverse any component of d1 (no sign flip, no cancellation)."""
     return d1[0] * d2[0] >= 0 and d1[1] * d2[1] >= 0

@@ -1,18 +1,18 @@
 """HYPOTHESIZE — Phase 1, SCAN 직후. 초기 가설 수립."""
 
-import json
+from ..const import ACTION_NUM_TO_NAME
+from .fmt import fmt_scan_result
 
 
 def build_hypothesize_message(
     scan_result: dict,
     available_actions: list[dict],
 ) -> str:
-    from ..const import ACTION_NUM_TO_NAME
     actions_names = ", ".join(ACTION_NUM_TO_NAME.get(a["value"], "?") for a in available_actions)
 
     return f"""\
-SCAN RESULT (objects found on screen)
-{json.dumps(scan_result, indent=2, ensure_ascii=False)}
+SCAN RESULT
+{fmt_scan_result(scan_result)}
 
 AVAILABLE ACTIONS: [{actions_names}]
 

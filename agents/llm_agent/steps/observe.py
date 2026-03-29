@@ -23,15 +23,15 @@ def do_observe(
     animation_events: list[dict] | None = None,
     result_events: list[dict] | None = None,
 ) -> dict:
+    wm_objects = agent.world_model.get_objects()
     if blobs:
         ann = blobs_to_annotation_dict(blobs)
-        before_img = grid_to_image_base64(prev_grid)
+        before_img = grid_to_image_base64_annotated(prev_grid, wm_objects, label_mode="name") if wm_objects else grid_to_image_base64(prev_grid)
         after_img  = grid_to_image_base64_annotated(curr_grid, ann, label_mode="name")
     else:
-        objects = agent.world_model.get_objects()
-        if objects:
-            before_img = grid_to_image_base64(prev_grid)
-            after_img  = grid_to_image_base64_annotated(curr_grid, objects)
+        if wm_objects:
+            before_img = grid_to_image_base64_annotated(prev_grid, wm_objects)
+            after_img  = grid_to_image_base64_annotated(curr_grid, wm_objects)
         else:
             before_img = grid_to_image_base64(prev_grid)
             after_img  = grid_to_image_base64(curr_grid)

@@ -1,6 +1,3 @@
-import json
-
-
 def build_evaluate_message(
     sequence_goal: str,
     success_condition: str,
@@ -11,13 +8,18 @@ def build_evaluate_message(
     observe_result: dict,
     incident_result: dict | None = None,
 ) -> str:
-    observe_str = json.dumps(observe_result, indent=2, ensure_ascii=False)
+    observe_str = observe_result.get("changes", "(none)") if observe_result else "(none)"
 
     incident_section = ""
     if incident_result:
+        inc_lines = []
+        if incident_result.get("reasoning"):
+            inc_lines.append(f"reasoning: {incident_result['reasoning']}")
+        if incident_result.get("key_learnings"):
+            inc_lines.append("key_learnings: " + "; ".join(incident_result["key_learnings"]))
         incident_section = f"""
 INCIDENT ANALYSIS RESULT
-{json.dumps(incident_result, indent=2, ensure_ascii=False)}
+{chr(10).join(inc_lines) if inc_lines else str(incident_result)}
 """
 
     return f"""\
@@ -25,8 +27,8 @@ SEQUENCE RESULT
   goal: "{sequence_goal}"
   success_condition: "{success_condition}"
   failure_condition: "{failure_condition}"
-  planned: {json.dumps(planned_sequence)}
-  executed: {json.dumps(executed_actions)}
+  planned: {planned_sequence}
+  executed: {executed_actions}
   abort_reason: {abort_reason or "null (completed normally)"}
 
 OBSERVATION (from visual analysis of before/after frames)

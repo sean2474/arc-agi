@@ -1,6 +1,7 @@
 """LLM 프롬프트용 텍스트 포맷 헬퍼."""
 
 from ..const import ARC_COLOR_NAMES
+from ..objects.event_detector.merge import merge_remap
 
 
 def fmt_colors(colors: list) -> str:
@@ -67,7 +68,9 @@ def fmt_world_model_prompt(wm: dict) -> str:
 
 
 def format_events_for_prompt(animation_events: list[dict], result_events: list[dict]) -> str:
-    """BlobManager events → LLM 프롬프트용 텍스트."""
+    """BlobManager events → LLM 프롬프트용 텍스트. merge 이벤트는 숨김."""
+    animation_events = merge_remap(animation_events or [])
+    result_events = merge_remap(result_events or [])
     lines = []
 
     def _label(ev: dict, key: str = "obj", name_key: str = "name") -> str:
@@ -114,10 +117,6 @@ def format_events_for_prompt(animation_events: list[dict], result_events: list[d
             return f"  {_label(ev)} {_rot_text(ev.get('angle_deg', 0))}"
         if t == "transform":
             return f"  {_label(ev)} changed appearance (color diff={ev.get('color_diff', 0):.2f})"
-        if t == "merge":
-            a = _label(ev, "obj_a", "name_a")
-            b = _label(ev, "obj_b", "name_b")
-            return f"  {a} and {b} merged into one object"
         if t == "camera_shift":
             dr, dc = ev.get("delta", [0, 0])
             return f"  camera moved {_delta_text(dr, dc)}"
@@ -145,4 +144,73 @@ def format_events_for_prompt(animation_events: list[dict], result_events: list[d
     else:
         lines.append("result: (none)")
 
+    return "\n".join(lines)
+
+
+def fmt_scan_result(scan_result: dict) -> str:
+    """SCAN 결과 dict → HYPOTHESIZE 프롬프트용 텍스트."""
+    lines = []
+    roles = scan_result.get("object_roles") or {}
+    objects = scan_result.get("objects") or []
+
+    if roles:
+        lines.append("objects:")
+        for oid, info in roles.items():
+            if not isinstance(info, dict):
+                continue
+            parts = [f"{oid}({info.get('name', oid)})"]
+            if info.get("type_hypothesis"):
+                parts.append(f"type={info['type_hypothesis']}")
+            if info.get("shape"):
+                parts.append(f"shape={info['shape']}")
+            lines.append("  " + "  ".join(parts))
+    elif objects:
+        lines.append("objects:")
+        for obj in objects:
+            if not isinstance(obj, dict):
+                continue
+            oid = obj.get("id", "?")
+            parts = [f"{oid}({obj.get('name', oid)})"]
+            if obj.get("type_hypothesis"):
+                parts.append(f"type={obj['type_hypothesis']}")
+            if obj.get("shape"):
+                parts.append(f"shape={obj['shape']}")
+            lines.append("  " + "  ".join(parts))
+
+    patterns = scan_result.get("patterns", [])
+    if patterns:
+        lines.append("patterns:")
+        for p in patterns:
+            lines.append(f"  - {p}")
+
+    return "\n".join(lines) if lines else "(none)"
+
+
+def fmt_actions(actions: dict) -> str:
+    """world model actions dict → prompt 텍스트."""
+    if not actions:
+        return "  (none)"
+    lines = []
+    for name, data in actions.items():
+        if not isinstance(data, dict):
+            continue
+        effect = data.get("effect", "")
+        conf = data.get("confidence", 0.0)
+        if effect:
+            lines.append(f"  {name}: {effect} (conf: {conf:.1f})")
+        else:
+            lines.append(f"  {name}: (not tested)")
+    return "\n".join(lines) if lines else "  (none)"
+
+
+def fmt_relationships(rels: list) -> str:
+    """world model relationships list → prompt 텍스트."""
+    filtered = [r for r in rels if isinstance(r, dict) and r.get("confidence", 0) >= 0.3]
+    if not filtered:
+        return "  (none)"
+    lines = []
+    for r in filtered:
+        result = r.get("interaction_result", "")
+        result_str = f" -> {result}" if result else ""
+        lines.append(f"  - {r.get('subject','?')} {r.get('relation','?')} {r.get('object','?')}{result_str} (conf: {r.get('confidence',0):.1f})")
     return "\n".join(lines)

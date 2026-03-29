@@ -1,5 +1,5 @@
 from ..const import ACTION_NUM_TO_NAME
-from .fmt import fmt_objects_prompt
+from .fmt import fmt_objects_prompt, fmt_actions, fmt_relationships
 
 
 def _actions_as_names(available_actions: list[dict]) -> str:
@@ -11,34 +11,6 @@ def _has_click(available_actions: list[dict]) -> bool:
         a.get("type") == "complex" or ACTION_NUM_TO_NAME.get(a.get("value")) == "click"
         for a in available_actions
     )
-
-
-def _fmt_actions(actions: dict) -> str:
-    if not actions:
-        return "  (none)"
-    lines = []
-    for name, data in actions.items():
-        if not isinstance(data, dict):
-            continue
-        effect = data.get("effect", "")
-        conf = data.get("confidence", 0.0)
-        if effect:
-            lines.append(f"  {name}: {effect} (conf: {conf:.1f})")
-        else:
-            lines.append(f"  {name}: (not tested)")
-    return "\n".join(lines) if lines else "  (none)"
-
-
-def _fmt_relationships(rels: list) -> str:
-    filtered = [r for r in rels if isinstance(r, dict) and r.get("confidence", 0) >= 0.3]
-    if not filtered:
-        return "  (none)"
-    lines = []
-    for r in filtered:
-        result = r.get("interaction_result", "")
-        result_str = f" → {result}" if result else ""
-        lines.append(f"  - {r.get('subject','?')} {r.get('relation','?')} {r.get('object','?')}{result_str} (conf: {r.get('confidence',0):.1f})")
-    return "\n".join(lines)
 
 
 def build_decide_message(
@@ -71,8 +43,8 @@ def build_decide_message(
     summary_text = summary.get("notes", "(none)") if summary else "(none)"
 
     wm = world_model or {}
-    actions_text = _fmt_actions(wm.get("actions", {}))
-    rels_text = _fmt_relationships(wm.get("relationships", []))
+    actions_text = fmt_actions(wm.get("actions", {}))
+    rels_text = fmt_relationships(wm.get("relationships", []))
 
     return f"""\
 GOAL: {subgoal_text}

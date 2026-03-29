@@ -16,17 +16,15 @@ class WorldModel:
     def __init__(self):
         self._data = {
             "phase": "static_observation",
-            "game_type": {"hypothesis": "unknown", "confidence": 0.0},
+            "game_type": {},
             "actions": {},
-            "controllable": {"description": None, "confidence": 0.0},
+            "controllable": {},
             "goal_hypotheses": [],
             "objects": {},
             "dangers": [],
             "interactions": [],
             "relationships": [],
-            "plans": [
-                {"description": "scan first frame", "priority": 1, "status": "pending", "confidence": 0.5, "rationale": "initial scan"}
-            ],
+            "plans": [],
         }
 
     # ── Phase ──
