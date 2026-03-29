@@ -273,36 +273,56 @@ def format_events_for_prompt(animation_events: list[dict], result_events: list[d
         name = ev.get(name_key, "")
         return f"{oid}({name})" if name and name != oid else oid
 
+    def _delta_text(dr: int, dc: int) -> str:
+        parts = []
+        if dr < 0:
+            parts.append(f"{abs(dr)} pixel{'s' if abs(dr) != 1 else ''} up")
+        elif dr > 0:
+            parts.append(f"{dr} pixel{'s' if dr != 1 else ''} down")
+        if dc < 0:
+            parts.append(f"{abs(dc)} pixel{'s' if abs(dc) != 1 else ''} left")
+        elif dc > 0:
+            parts.append(f"{dc} pixel{'s' if dc != 1 else ''} right")
+        return ", ".join(parts) if parts else "0 pixels (no net movement)"
+
+    def _rot_text(deg) -> str:
+        d = int(deg)
+        if d > 0:
+            return f"rotated {d}° clockwise"
+        elif d < 0:
+            return f"rotated {abs(d)}° counter-clockwise"
+        return "rotated 0°"
+
     def _fmt(ev: dict) -> str | None:
         t = ev.get("type", "")
-        f = ev.get("frame", "?")
         if t == "move":
             dr, dc = ev.get("delta", [0, 0])
-            return f"  move       {_label(ev)} Δ({dr:+d},{dc:+d}) f{f}"
+            return f"  {_label(ev)} moved {_delta_text(dr, dc)}"
         if t == "collide":
             a = _label(ev, "obj_a", "name_a")
             b = _label(ev, "obj_b", "name_b")
-            return f"  collide    {a} × {b} f{f}"
+            return f"  {a} and {b} collided"
         if t == "disappear":
-            return f"  disappear  {_label(ev)} cause={ev.get('cause','?')} f{f}"
+            cause = ev.get("cause", "unknown")
+            return f"  {_label(ev)} disappeared (cause: {cause})"
         if t == "appear":
             pos = ev.get("pos", ev.get("last_pos", ["?", "?"]))
-            return f"  appear     {_label(ev)} at ({pos[0]},{pos[1]}) f{f}"
+            return f"  {_label(ev)} appeared at row {pos[0]}, col {pos[1]}"
         if t == "rotation":
-            return f"  rotation   {_label(ev)} {ev.get('angle_deg','?')}° f{f}"
+            return f"  {_label(ev)} {_rot_text(ev.get('angle_deg', 0))}"
         if t == "transform":
-            return f"  transform  {_label(ev)} color_diff={ev.get('color_diff',0):.2f} f{f}"
+            return f"  {_label(ev)} changed appearance (color diff={ev.get('color_diff', 0):.2f})"
         if t == "merge":
             a = _label(ev, "obj_a", "name_a")
             b = _label(ev, "obj_b", "name_b")
-            return f"  merge      {a} + {b} f{f}"
+            return f"  {a} and {b} merged into one object"
         if t == "camera_shift":
-            d = ev.get("delta", [0, 0])
-            return f"  camera     Δ({d[0]:+d},{d[1]:+d}) f{f}"
+            dr, dc = ev.get("delta", [0, 0])
+            return f"  camera moved {_delta_text(dr, dc)}"
         if t == "camera_rotation":
-            return f"  camera_rot {ev.get('angle_deg','?')}° f{f}"
+            return f"  camera {_rot_text(ev.get('angle_deg', 0))}"
         if t == "game_over":
-            return f"  game_over  f{f}"
+            return f"  game over"
         return None
 
     if animation_events:

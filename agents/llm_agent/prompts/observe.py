@@ -12,10 +12,11 @@ def build_observe_message(
 ) -> str:
     change_section = ""
     if events_text:
-        change_section = f"""CODE-DETECTED EVENTS:
+        change_section = f"""CODE-DETECTED EVENTS (GROUND TRUTH — do NOT contradict these):
 {events_text}
 
-Objects in the images are outlined with their name labels (BEFORE left, AFTER right)."""
+These events are computed from pixel diffs and are authoritative.
+The two images (BEFORE left, AFTER right) are provided to find additional changes NOT captured above."""
     else:
         change_section = f"""CODE-COMPUTED DIFF:
 {diff_summary}
@@ -31,20 +32,22 @@ GOAL: {goal}
 
 {change_section}
 
-STEP 1 - VERIFY: Do the images confirm the events above?
-  Match labeled objects in images to events. Note any contradictions.
+STEP 1 - ACCEPT EVENTS: Treat code-detected events as ground truth.
+  For each event, identify the object by its instance_id in WORLD MODEL > objects.
+  Do NOT re-derive which object moved from the image — use the event list.
 
-STEP 2 - MISSING: Any changes visible in images NOT captured in events?
+STEP 2 - MISSING: Any changes visible in images NOT already captured in the events above?
+  Only report additional changes not mentioned in the event list.
 
-STEP 3 - RECLASSIFY: Based on movement, update type_hypothesis for any object whose classification is now wrong.
+STEP 3 - RECLASSIFY: For every object that MOVED (per events), update its type_hypothesis.
   KEY RULE: An object that MOVED cannot be an "obstacle" or "static platform".
-  - Object moved directly in response to the action → "controllable" (note: some games have no player; the action may instead move the environment, a cursor, or multiple objects)
-  - Object moved but not action-controlled → "dynamic"
-  - Object stayed completely still → "static" or "obstacle" or "platform"
+  - Moved in direct response to the action → "controllable"
+  - Moved but not action-controlled → "dynamic"
+  - Did not move at all → keep as "static", "obstacle", or "platform"
   List all reclassifications in renamed_objects (include new type_hypothesis even if name stays same).
 
-STEP 4 - NAME REVIEW: For each object, is the current "name" still appropriate?
-  If a name should change (e.g. you now know "unknown_1" is actually the "exit"), list it in renamed_objects.
+STEP 4 - NAME REVIEW: For each object that moved or changed, is its current "name" still appropriate?
+  If a name should change, list it in renamed_objects.
   Keep names game-role based — not color or shape based.
 
 STEP 5 - CHALLENGE: What could contradict your observations?
@@ -63,8 +66,9 @@ Respond in JSON:
 }}
 
 renamed_objects format: {{"obj_001": {{"new_name": "", "type_hypothesis": "", "reason": "moved in response to action"}}}}
+  - Keys MUST be obj_id (e.g. "obj_006"), NOT name strings.
   - Include "type_hypothesis" whenever the classification changes (even if name stays same).
-  - ALWAYS reclassify any object labeled "obstacle" or "unknown" that moved this step.
+  - ALWAYS reclassify any object with type_hypothesis "obstacle"/"unknown"/"static" that appears in the event list as having moved.
 relationship_updates: only fill if a passive event was observed (object disappeared, game_over triggered near object, etc.).
 
 Rules:
@@ -72,4 +76,5 @@ Rules:
 - Do NOT suggest actions. Observe ONLY.
 - Be specific about positions.
 - CRITICAL: If an object moved and is currently labeled "obstacle", it MUST be reclassified. Add it to renamed_objects.
+- CRITICAL: obj_id from CODE-DETECTED EVENTS maps directly to instance_id in WORLD MODEL objects. Use this mapping.
 - Changes in objects at the extreme corners or edges of the screen are HUD updates (step counter, score) — NOT meaningful game events. Do NOT interpret these as success signals."""

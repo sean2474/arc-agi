@@ -57,6 +57,9 @@ class LLMAgent:
         self._blob_manager: BlobManager | None = None
         self._last_anim_events: list[dict] = []
         self._last_result_events: list[dict] = []
+        self._accumulated_anim_events: list[dict] = []
+        self._accumulated_result_events: list[dict] = []
+        self._sequence_start_grid: list[str] | None = None
 
         self.reports: list[dict] = []
         self.game_info: dict = {}
@@ -291,6 +294,9 @@ class LLMAgent:
                                 print(f"  [INCIDENT-RENAME] {oid} → {info.get('new_name', blob.name)}")
                 self.world_model.reset_for_new_level()
                 self.pending_sequence = []
+                self._accumulated_anim_events = []
+                self._accumulated_result_events = []
+                self._sequence_start_grid = None
 
             # current_subgoal이 비어 있으면 active/pending plan에서 채움
             if not self.current_subgoal:
@@ -302,58 +308,66 @@ class LLMAgent:
                     if nxt:
                         self.current_subgoal = nxt
 
-            # OBSERVE
-            print("  [OBSERVE]")
-            action_label = str(self.last_action) if isinstance(self.last_action, list) else self.last_action
-            observe_result = do_observe(
-                self, action_label,
-                str(self.current_subgoal.get("description", "")),
-                self.prev_grid, curr_grid,
-                blobs=self._blob_manager.blobs if self._blob_manager else None,
-                animation_events=self._last_anim_events if self._blob_manager else None,
-                result_events=self._last_result_events if self._blob_manager else None,
-            )
-
-            # objects merge
-            for key in ("moved_objects", "new_objects"):
-                objs = observe_result.get(key, {})
-                if objs and isinstance(objs, dict):
-                    self.world_model.merge_objects(objs)
-
-            # renamed_objects — name과 type_hypothesis 동시 반영
-            renames = observe_result.get("renamed_objects", {})
-            if renames and isinstance(renames, dict):
-                self.world_model.apply_renames(renames)
-                for obj_id, info in renames.items():
-                    if not isinstance(info, dict):
-                        continue
-                    new_name = info.get("new_name") or info.get("name")
-                    new_type = info.get("type_hypothesis")
-                    if new_type:
-                        self.world_model.update_object(obj_id, type_hypothesis=new_type)
-                    if new_name:
-                        print(f"  [RENAME] {obj_id} → {new_name}"
-                              + (f" ({new_type})" if new_type else ""))
-                if self._blob_manager:
-                    self.world_model.push_names_to_blobs(self._blob_manager.blobs)
-
-            # relationship_updates
-            for ru in observe_result.get("relationship_updates", []):
-                if not isinstance(ru, dict):
-                    continue
-                subj = ru.get("subject_name") or ru.get("subject") or ru.get("subject_type")
-                obj_ = ru.get("object_name") or ru.get("object") or ru.get("object_type")
-                if subj and obj_:
-                    self.world_model.add_relationship(
-                        subj, ru.get("relation", ""),
-                        obj_, ru.get("context", "any"),
-                        ru.get("interaction_result"), ru.get("confidence", 0.7),
-                    )
-
-            # 코드레벨 ANALYZE: pending_sequence 남아있으면 continue, 없으면 done
             if self.pending_sequence:
+                # 시퀀스 중간: OBSERVE 스킵, 이벤트 누적
+                self._accumulated_anim_events.extend(self._last_anim_events)
+                self._accumulated_result_events.extend(self._last_result_events)
                 need_replan = False
             else:
+                # 시퀀스 종료: 전체 누적 이벤트로 OBSERVE 호출
+                all_anim_events = self._accumulated_anim_events + self._last_anim_events
+                all_result_events = self._accumulated_result_events + self._last_result_events
+                self._accumulated_anim_events = []
+                self._accumulated_result_events = []
+                seq_start_grid = self._sequence_start_grid or self.prev_grid
+
+                print("  [OBSERVE]")
+                action_label = str(self.last_action) if isinstance(self.last_action, list) else self.last_action
+                observe_result = do_observe(
+                    self, action_label,
+                    str(self.current_subgoal.get("description", "")),
+                    seq_start_grid, curr_grid,
+                    blobs=self._blob_manager.blobs if self._blob_manager else None,
+                    animation_events=all_anim_events if self._blob_manager else None,
+                    result_events=all_result_events if self._blob_manager else None,
+                )
+
+                # objects merge
+                for key in ("moved_objects", "new_objects"):
+                    objs = observe_result.get(key, {})
+                    if objs and isinstance(objs, dict):
+                        self.world_model.merge_objects(objs)
+
+                # renamed_objects — name과 type_hypothesis 동시 반영
+                renames = observe_result.get("renamed_objects", {})
+                if renames and isinstance(renames, dict):
+                    self.world_model.apply_renames(renames)
+                    for obj_id, info in renames.items():
+                        if not isinstance(info, dict):
+                            continue
+                        new_name = info.get("new_name") or info.get("name")
+                        new_type = info.get("type_hypothesis")
+                        if new_type:
+                            self.world_model.update_object(obj_id, type_hypothesis=new_type)
+                        if new_name:
+                            print(f"  [RENAME] {obj_id} → {new_name}"
+                                  + (f" ({new_type})" if new_type else ""))
+                    if self._blob_manager:
+                        self.world_model.push_names_to_blobs(self._blob_manager.blobs)
+
+                # relationship_updates
+                for ru in observe_result.get("relationship_updates", []):
+                    if not isinstance(ru, dict):
+                        continue
+                    subj = ru.get("subject_name") or ru.get("subject") or ru.get("subject_type")
+                    obj_ = ru.get("object_name") or ru.get("object") or ru.get("object_type")
+                    if subj and obj_:
+                        self.world_model.add_relationship(
+                            subj, ru.get("relation", ""),
+                            obj_, ru.get("context", "any"),
+                            ru.get("interaction_result"), ru.get("confidence", 0.7),
+                        )
+
                 need_replan = True
                 if self.current_subgoal:
                     self.world_model.mark_plan(self.current_subgoal.get("description", ""), "done")
@@ -381,6 +395,7 @@ class LLMAgent:
             self.planned_sequence = list(sequence)
             self.pending_sequence = sequence[1:]  # 첫 액션 이후 나머지
             raw_action = sequence[0] if sequence else "up"
+            self._sequence_start_grid = curr_grid  # 새 시퀀스 시작 그리드
         else:
             # 시퀀스 계속
             raw_action = self.pending_sequence.pop(0)

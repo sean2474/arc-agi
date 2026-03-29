@@ -16,12 +16,9 @@ def _format_blobs_for_scan(blobs: dict) -> str:
     for oid, b in blobs.items():
         if not b.is_present:
             continue
-        bbox = b.bbox
-        r0, r1 = bbox["row_min"], bbox["row_max"]
-        c0, c1 = bbox["col_min"], bbox["col_max"]
         colors = ",".join(b.colors) if b.colors else "?"
         shape = ",".join(b.shape_tags) if b.shape_tags else "?"
-        lines.append(f"  {oid}: colors=[{colors}] bbox=row{r0}-{r1}/col{c0}-{c1} cells={b.cell_count} shape={shape}")
+        lines.append(f"  {oid}: colors=[{colors}] cells={b.cell_count} shape={shape}")
     return "\n".join(lines) if lines else "  (none)"
 
 

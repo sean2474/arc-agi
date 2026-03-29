@@ -39,7 +39,7 @@ CURRENT SUBGOAL
 LAST OBSERVATION
 {json.dumps(observe_result, indent=2, ensure_ascii=False)}
 
-KNOWN OBJECTS (name, position, bbox)
+KNOWN OBJECTS (name, position)
 {json.dumps(objects, indent=2, ensure_ascii=False)}
 
 SUMMARY
@@ -49,7 +49,7 @@ An annotated image of the current frame is provided.
 Available actions: [{actions_names}]
 
 Plan a sequence of actions to achieve the current subgoal.
-Use the image and object positions/bboxes to reason about the path.
+Use the image and object positions to reason about the path.
 
 Respond in JSON:
 {{
