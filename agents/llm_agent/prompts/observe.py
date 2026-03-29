@@ -12,13 +12,13 @@ def build_observe_message(
 ) -> str:
     change_section = ""
     if events_text:
-        change_section = f"""CODE-DETECTED EVENTS (GROUND TRUTH — do NOT contradict these):
+        change_section = f"""EVENTS (GROUND TRUTH — do NOT contradict these):
 {events_text}
 
 These events are computed from pixel diffs and are authoritative.
 The two images (BEFORE left, AFTER right) are provided to find additional changes NOT captured above."""
     else:
-        change_section = f"""CODE-COMPUTED DIFF:
+        change_section = f"""DIFF:
 {diff_summary}
 
 The two images show FRAME BEFORE (first) and FRAME AFTER (second)."""
@@ -32,7 +32,7 @@ GOAL: {goal}
 
 {change_section}
 
-STEP 1 - ACCEPT EVENTS: Treat code-detected events as ground truth.
+STEP 1 - ACCEPT EVENTS: Treat events as ground truth.
   For each event, identify the object by its instance_id in WORLD MODEL > objects.
   Do NOT re-derive which object moved from the image — use the event list.
 
@@ -76,5 +76,5 @@ Rules:
 - Do NOT suggest actions. Observe ONLY.
 - Be specific about positions.
 - CRITICAL: If an object moved and is currently labeled "obstacle", it MUST be reclassified. Add it to renamed_objects.
-- CRITICAL: obj_id from CODE-DETECTED EVENTS maps directly to instance_id in WORLD MODEL objects. Use this mapping.
+- CRITICAL: obj_id from EVENTS maps directly to instance_id in WORLD MODEL objects. Use this mapping.
 - Changes in objects at the extreme corners or edges of the screen are HUD updates (step counter, score) — NOT meaningful game events. Do NOT interpret these as success signals."""

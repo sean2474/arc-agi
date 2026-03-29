@@ -19,6 +19,7 @@ class StepRecord:
     report: dict | None = None
     prompts: dict | None = None
     responses: dict | None = None
+    images: dict | None = None
     world_model: dict | None = None
 
     def to_dict(self) -> dict:
@@ -41,6 +42,8 @@ class StepRecord:
             d["prompts"] = self.prompts
         if self.responses:
             d["responses"] = self.responses
+        if self.images:
+            d["images"] = self.images
         if self.world_model:
             d["world_model"] = self.world_model
         return d

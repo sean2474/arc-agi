@@ -71,6 +71,7 @@ class LLMAgent:
         self.total_output_tokens: int = 0
         self._step_prompts: dict = {}
         self._step_responses: dict = {}
+        self._step_images: dict = {}
 
     def setup(self, game_info: dict):
         self.game_info = game_info
@@ -83,6 +84,8 @@ class LLMAgent:
         """VLM 호출. images_b64가 비어있으면 텍스트만 전달."""
         if label:
             self._step_prompts[label] = text
+            if images_b64:
+                self._step_images[label] = images_b64
 
         if images_b64:
             content = []
@@ -149,6 +152,7 @@ class LLMAgent:
         curr_levels = obs.levels_completed
         self._step_prompts = {}
         self._step_responses = {}
+        self._step_images = {}
 
         phase = self.world_model.phase
 
@@ -227,6 +231,7 @@ class LLMAgent:
                 llm_phase="scan+hypothesize",
                 prompts=dict(self._step_prompts) if self._step_prompts else None,
                 responses=dict(self._step_responses) if self._step_responses else None,
+                images=dict(self._step_images) if self._step_images else None,
                 world_model=self.world_model.to_dict(),
             )
             self.prev_grid = curr_grid
@@ -426,6 +431,7 @@ class LLMAgent:
             llm_phase="sequence" if not need_replan else "decide",
             prompts=dict(self._step_prompts) if self._step_prompts else None,
             responses=dict(self._step_responses) if self._step_responses else None,
+            images=dict(self._step_images) if self._step_images else None,
             world_model=self.world_model.to_dict(),
         )
 

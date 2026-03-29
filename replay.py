@@ -66,6 +66,11 @@ HTML = """<!DOCTYPE html>
   .prompt-tab { display:inline-block; padding:4px 12px; margin:0 4px 8px 0; border:1px solid #555;
                 border-radius:4px; cursor:pointer; font-size:11px; color:#aaa; }
   .prompt-tab.active { background:#533483; color:#fff; border-color:#7fdbff; }
+  .prompt-tab.img-tab { border-color:#2d6a4f; color:#52b788; }
+  .prompt-tab.img-tab.active { background:#2d6a4f; color:#fff; }
+  #prompt-images { display:none; gap:12px; flex-wrap:wrap; margin-top:8px; }
+  #prompt-images.show { display:flex; }
+  #prompt-images img { image-rendering:pixelated; border:1px solid #333; max-width:100%; }
 </style>
 </head>
 <body>
@@ -92,6 +97,7 @@ HTML = """<!DOCTYPE html>
       <span id="prompt-close" onclick="closePrompt()">✕</span>
       <div id="prompt-tabs"></div>
       <pre id="prompt-content"></pre>
+      <div id="prompt-images"></div>
     </div>
   </div>
 
@@ -237,30 +243,37 @@ function showStep(idx) {
 }
 
 // prompt popup
+function setActiveTab(tabEl) {
+  document.getElementById('prompt-tabs').querySelectorAll('.prompt-tab').forEach(t => t.classList.remove('active'));
+  tabEl.classList.add('active');
+}
+function showText(text) {
+  document.getElementById('prompt-content').textContent = text;
+  document.getElementById('prompt-content').style.display = 'block';
+  document.getElementById('prompt-images').classList.remove('show');
+}
+function showImages(imgs) {
+  document.getElementById('prompt-content').style.display = 'none';
+  const el = document.getElementById('prompt-images');
+  el.innerHTML = imgs.map(b64 =>
+    `<img src="data:image/png;base64,${b64}" style="height:256px;">`
+  ).join('');
+  el.classList.add('show');
+}
+
 function showPrompts(idx) {
   const s = trajectory[idx];
   if (!s.prompts) return;
   const keys = Object.keys(s.prompts);
   const tabsEl = document.getElementById('prompt-tabs');
-  const contentEl = document.getElementById('prompt-content');
   tabsEl.innerHTML = '';
-
-  function showTab(label, text) {
-    tabsEl.querySelectorAll('.prompt-tab').forEach(t => t.classList.remove('active'));
-    event.target.classList.add('active');
-    contentEl.textContent = text;
-  }
 
   keys.forEach((k, i) => {
     // prompt tab
     const pTab = document.createElement('span');
     pTab.className = 'prompt-tab' + (i === 0 ? ' active' : '');
     pTab.textContent = k + ' (prompt)';
-    pTab.onclick = () => {
-      tabsEl.querySelectorAll('.prompt-tab').forEach(t => t.classList.remove('active'));
-      pTab.classList.add('active');
-      contentEl.textContent = s.prompts[k];
-    };
+    pTab.onclick = () => { setActiveTab(pTab); showText(s.prompts[k]); };
     tabsEl.appendChild(pTab);
 
     // response tab
@@ -268,16 +281,21 @@ function showPrompts(idx) {
       const rTab = document.createElement('span');
       rTab.className = 'prompt-tab';
       rTab.textContent = k + ' (response)';
-      rTab.onclick = () => {
-        tabsEl.querySelectorAll('.prompt-tab').forEach(t => t.classList.remove('active'));
-        rTab.classList.add('active');
-        contentEl.textContent = s.responses[k];
-      };
+      rTab.onclick = () => { setActiveTab(rTab); showText(s.responses[k]); };
       tabsEl.appendChild(rTab);
+    }
+
+    // images tab
+    if (s.images && s.images[k] && s.images[k].length > 0) {
+      const iTab = document.createElement('span');
+      iTab.className = 'prompt-tab img-tab';
+      iTab.textContent = k + ' (images)';
+      iTab.onclick = () => { setActiveTab(iTab); showImages(s.images[k]); };
+      tabsEl.appendChild(iTab);
     }
   });
 
-  contentEl.textContent = s.prompts[keys[0]];
+  showText(s.prompts[keys[0]]);
   document.getElementById('prompt-overlay').classList.add('show');
 }
 function showWorldModel(idx) {
