@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from agent.agent import LLMAgent
+    from agent import LLMAgent
 
 from agent.prompts import build_evaluate_message
 
@@ -16,13 +16,17 @@ def do_evaluate(
 ) -> tuple[dict, list]:
     """(report, discoveries) 반환."""
     last_action = agent.last_action or "unknown"
-    last_goal = agent.last_goal or ""
+    subgoal = agent.current_subgoal or {}
+    last_goal = subgoal.get("description", "")
+    success_condition = subgoal.get("success_condition", "")
+    failure_condition = subgoal.get("failure_condition", "")
+    planned = getattr(agent, "planned_sequence", [last_action])
 
     msg = build_evaluate_message(
         sequence_goal=last_goal,
-        success_condition=agent.success_condition,
-        failure_condition=agent.failure_condition,
-        planned_sequence=[last_action],
+        success_condition=success_condition,
+        failure_condition=failure_condition,
+        planned_sequence=planned,
         executed_actions=[last_action],
         abort_reason=None,
         observe_result=observe_result,
