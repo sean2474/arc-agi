@@ -24,7 +24,11 @@ def build_decide_message(
     actions_names = _actions_as_names(available_actions)
     has_click = _has_click(available_actions)
 
-    seq_example = '["right", "down", ["click", "obj_001"]]' if has_click else '["right", "down", "up"]'
+    non_click = [ACTION_NUM_TO_NAME.get(a["value"], "?") for a in available_actions if ACTION_NUM_TO_NAME.get(a["value"]) != "click"]
+    sample = non_click[:2]
+    if has_click:
+        sample.append('["click", "obj_001"]')
+    seq_example = "[" + ", ".join(f'"{s}"' if not s.startswith("[") else s for s in sample) + "]"
 
     click_rule = (
         '  - Click action: ALWAYS ["click", "obj_id"] — use the obj_id key from KNOWN OBJECTS (e.g. "obj_003").\n'
