@@ -180,6 +180,9 @@ class LLMAgent:
                         b.name = role.get("name") or b.name
                         b.type_hypothesis = role.get("type_hypothesis") or b.type_hypothesis
                 self.world_model.sync_from_blobs(self._blob_manager.blobs)
+                for oid, role in object_roles.items():
+                    if isinstance(role, dict) and role.get("shape"):
+                        self.world_model.update_object(oid, shape=role["shape"])
 
             # 기존 방식 fallback (blobs 없을 때 LLM이 objects 반환)
             scan_objects = scan_result.get("objects", {})
@@ -428,7 +431,7 @@ class LLMAgent:
             hypothesis=f"subgoal: {self.current_subgoal.get('description', '')}",
             challenge=str(analyze_result.get("reason", "")) if analyze_result else "",
             goal=self.current_subgoal.get("description", ""),
-            llm_phase="sequence" if not need_replan else "decide",
+            llm_phase="sequence" if not need_replan else ("observe+decide" if observe_result else "decide"),
             prompts=dict(self._step_prompts) if self._step_prompts else None,
             responses=dict(self._step_responses) if self._step_responses else None,
             images=dict(self._step_images) if self._step_images else None,

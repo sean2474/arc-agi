@@ -7,8 +7,9 @@ if TYPE_CHECKING:
 
 from ..grid_utils import (
     grid_to_image_base64, grid_to_image_base64_annotated,
-    blobs_to_annotation_dict, summarize_diff, format_events_for_prompt,
+    blobs_to_annotation_dict, summarize_diff,
 )
+from ..prompts.fmt import format_events_for_prompt
 from ..prompts import build_observe_message
 
 
@@ -24,13 +25,13 @@ def do_observe(
 ) -> dict:
     if blobs:
         ann = blobs_to_annotation_dict(blobs)
-        before_img = grid_to_image_base64_annotated(prev_grid, ann, label_mode="name")
-        after_img  = grid_to_image_base64_annotated(curr_grid,  ann, label_mode="name")
+        before_img = grid_to_image_base64(prev_grid)
+        after_img  = grid_to_image_base64_annotated(curr_grid, ann, label_mode="name")
     else:
         objects = agent.world_model.get_objects()
         if objects:
-            before_img = grid_to_image_base64_annotated(prev_grid, objects)
-            after_img  = grid_to_image_base64_annotated(curr_grid,  objects)
+            before_img = grid_to_image_base64(prev_grid)
+            after_img  = grid_to_image_base64_annotated(curr_grid, objects)
         else:
             before_img = grid_to_image_base64(prev_grid)
             after_img  = grid_to_image_base64(curr_grid)

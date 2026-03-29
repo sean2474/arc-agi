@@ -10,7 +10,6 @@ class Blob:
     colors: list = field(default_factory=list)      # ARC hex chars e.g. ['3', 'e']
     bbox: dict = field(default_factory=dict)         # row_min/max, col_min/max
     cell_count: int = 0
-    shape_tags: list = field(default_factory=list)
     is_present: bool = True
     last_seen_step: int = 0
     last_seen_bbox: Optional[dict] = None
@@ -33,7 +32,6 @@ class Blob:
             "colors": self.colors,
             "bbox": self.bbox,
             "cell_count": self.cell_count,
-            "shape_tags": self.shape_tags,
             "is_present": self.is_present,
             "last_seen_step": self.last_seen_step,
         }

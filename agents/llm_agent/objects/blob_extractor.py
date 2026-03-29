@@ -20,33 +20,6 @@ def detect_background_colors(grid: list[str]) -> set[str]:
     return bg
 
 
-def _shape_tags(cells: list[tuple], bbox: dict) -> list[str]:
-    h = bbox["row_max"] - bbox["row_min"] + 1
-    w = bbox["col_max"] - bbox["col_min"] + 1
-    fill = len(cells) / (h * w) if h * w > 0 else 0
-    tags: list[str] = []
-
-    if h == 1:
-        tags.append("line_h")
-    elif w == 1:
-        tags.append("line_v")
-    elif fill > 0.85:
-        tags.append("solid")
-    elif fill < 0.50:
-        tags.append("hollow")
-    else:
-        tags.append("partial")
-
-    if h == w:
-        tags.append("square_bbox")
-    elif h > w * 1.5:
-        tags.append("tall")
-    elif w > h * 1.5:
-        tags.append("wide")
-
-    return tags
-
-
 def _bbox_area(bbox: dict) -> int:
     return (bbox["row_max"] - bbox["row_min"] + 1) * (bbox["col_max"] - bbox["col_min"] + 1)
 
@@ -240,7 +213,6 @@ def extract_blobs(
                 colors=[ch],
                 bbox=bbox,
                 cell_count=len(cells),
-                shape_tags=_shape_tags(cells, bbox),
                 color_ratios={ch: 1.0},
             )
 

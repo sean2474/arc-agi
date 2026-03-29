@@ -18,12 +18,14 @@ def do_decide(agent: LLMAgent, current_subgoal: dict, observe_result: dict, curr
     else:
         curr_img = grid_to_image_base64(curr_grid)
 
+    wm_prompt = agent.world_model.to_prompt_dict()
     msg = build_decide_message(
         current_subgoal=current_subgoal,
         observe_result=observe_result,
-        objects=agent.world_model.to_prompt_dict().get("objects", []),
+        objects=wm_prompt.get("objects", []),
         available_actions=agent.game_info.get("available_actions", []),
         summary=agent.summary,
+        world_model=wm_prompt,
     )
     parsed = agent._call_vlm(msg, [curr_img], label="decide")
 

@@ -97,7 +97,6 @@ ARC_COLOR_NAMES = {
     "c": "orange", "d": "maroon", "e": "green", "f": "purple",
 }
 
-COLOR_PROMPT_LINE = "  ".join(f"{k}={v}" for k, v in ARC_COLOR_NAMES.items())
 # → "0=black  1=blue  2=red  3=green  4=yellow  5=gray  ..."
 ARC_COLORS = [
     "#FFFFFF",  #  0: white

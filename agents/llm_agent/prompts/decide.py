@@ -1,5 +1,5 @@
-import json
 from ..const import ACTION_NUM_TO_NAME
+from .fmt import fmt_objects_prompt
 
 
 def _actions_as_names(available_actions: list[dict]) -> str:
@@ -13,17 +13,47 @@ def _has_click(available_actions: list[dict]) -> bool:
     )
 
 
+def _fmt_actions(actions: dict) -> str:
+    if not actions:
+        return "  (none)"
+    lines = []
+    for name, data in actions.items():
+        if not isinstance(data, dict):
+            continue
+        effect = data.get("effect", "")
+        conf = data.get("confidence", 0.0)
+        if effect:
+            lines.append(f"  {name}: {effect} (conf: {conf:.1f})")
+        else:
+            lines.append(f"  {name}: (not tested)")
+    return "\n".join(lines) if lines else "  (none)"
+
+
+def _fmt_relationships(rels: list) -> str:
+    filtered = [r for r in rels if isinstance(r, dict) and r.get("confidence", 0) >= 0.3]
+    if not filtered:
+        return "  (none)"
+    lines = []
+    for r in filtered:
+        result = r.get("interaction_result", "")
+        result_str = f" → {result}" if result else ""
+        lines.append(f"  - {r.get('subject','?')} {r.get('relation','?')} {r.get('object','?')}{result_str} (conf: {r.get('confidence',0):.1f})")
+    return "\n".join(lines)
+
+
 def build_decide_message(
     current_subgoal: dict,
     observe_result: dict,
     objects: dict,
     available_actions: list[dict],
     summary: dict,
+    world_model: dict | None = None,
 ) -> str:
     actions_names = _actions_as_names(available_actions)
     has_click = _has_click(available_actions)
 
     seq_example = '["right", "down", ["click", "obj_001"]]' if has_click else '["right", "down", "up"]'
+    
     click_rule = (
         '  - Click action: a 2-element array — ["click", "obj_id"] using the key from KNOWN OBJECTS (e.g. "obj_001").\n'
         '    Prefer obj_id over name to avoid ambiguity when multiple objects share the same name.\n'
@@ -32,24 +62,39 @@ def build_decide_message(
         '  - Do NOT use click — it is not available in this game.'
     )
 
+    subgoal_text = current_subgoal.get("description", "(none)")
+    conf = current_subgoal.get("confidence")
+    if isinstance(conf, (int, float)):
+        subgoal_text += f" [confidence: {conf:.1f}]"
+
+    obs_text = observe_result.get("changes", "(none)") if observe_result else "(none)"
+    summary_text = summary.get("notes", "(none)") if summary else "(none)"
+
+    wm = world_model or {}
+    actions_text = _fmt_actions(wm.get("actions", {}))
+    rels_text = _fmt_relationships(wm.get("relationships", []))
+
     return f"""\
-CURRENT SUBGOAL
-{json.dumps(current_subgoal, indent=2, ensure_ascii=False)}
+GOAL: {subgoal_text}
 
-LAST OBSERVATION
-{json.dumps(observe_result, indent=2, ensure_ascii=False)}
+LAST OBSERVATION: {obs_text}
 
-KNOWN OBJECTS (name, position)
-{json.dumps(objects, indent=2, ensure_ascii=False)}
+KNOWN OBJECTS
+{fmt_objects_prompt(objects)}
 
-SUMMARY
-{json.dumps(summary, indent=2, ensure_ascii=False)}
+ACTIONS
+{actions_text}
+
+RELATIONSHIPS
+{rels_text}
+
+SUMMARY: {summary_text}
 
 An annotated image of the current frame is provided.
 Available actions: [{actions_names}]
 
 Plan a sequence of actions to achieve the current subgoal.
-Use the image and object positions to reason about the path.
+Use the image and object positions check the current state and determine the next action to acheive goal.
 
 Respond in JSON:
 {{

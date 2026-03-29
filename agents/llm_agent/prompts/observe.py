@@ -1,6 +1,6 @@
 """OBSERVE — Phase 2+ 전용. VLM에 before/after 이미지 + 코드 diff 요약 전달."""
 
-import json
+from .fmt import fmt_world_model_prompt
 
 
 def build_observe_message(
@@ -25,7 +25,7 @@ The two images show FRAME BEFORE (first) and FRAME AFTER (second)."""
 
     return f"""\
 WORLD MODEL
-{json.dumps(world_model, indent=2, ensure_ascii=False)}
+{fmt_world_model_prompt(world_model)}
 
 ACTION TAKEN: {action_taken}
 GOAL: {goal}

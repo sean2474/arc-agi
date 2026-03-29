@@ -174,14 +174,14 @@ function showStep(idx) {
   if (s.trigger) {
     html += `<div class="info-section"><div class="info-label">Trigger</div><div class="info-content">${esc(s.trigger)}</div></div>`;
   }
+  if (s.observation) {
+    html += `<div class="info-section"><div class="info-label">Observation</div><div class="info-content">${esc(s.observation)}</div></div>`;
+  }
   if (s.hypothesis) {
     html += `<div class="info-section"><div class="info-label">Hypothesis</div><div class="info-content">${esc(s.hypothesis)}</div></div>`;
   }
   if (s.challenge) {
     html += `<div class="info-section"><div class="info-label">Challenge</div><div class="info-content">${esc(s.challenge)}</div></div>`;
-  }
-  if (s.observation) {
-    html += `<div class="info-section"><div class="info-label">Observation</div><div class="info-content">${esc(s.observation)}</div></div>`;
   }
   if (s.reasoning) {
     html += `<div class="info-section"><div class="info-label">Reasoning</div><div class="info-content">${esc(s.reasoning)}</div></div>`;

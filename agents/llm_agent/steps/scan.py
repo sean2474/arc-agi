@@ -17,7 +17,6 @@ def do_scan(agent: LLMAgent, step: int, curr_grid: list[str], curr_levels: int,
     else:
         img_b64 = grid_to_image_base64(curr_grid)
     msg = build_scan_message(
-        game_id=agent.game_info.get("game_id", "unknown"),
         available_actions=agent.game_info.get("available_actions", []),
         levels_completed=curr_levels,
         win_levels=agent.game_info.get("win_levels", 0),

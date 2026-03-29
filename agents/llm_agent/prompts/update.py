@@ -1,4 +1,4 @@
-import json
+from .fmt import fmt_world_model_prompt
 
 
 def build_update_message(
@@ -10,23 +10,28 @@ def build_update_message(
 ) -> str:
     incident_section = ""
     if incident_result:
+        inc_lines = []
+        if incident_result.get("reasoning"):
+            inc_lines.append(f"reasoning: {incident_result['reasoning']}")
+        if incident_result.get("key_learnings"):
+            inc_lines.append("key_learnings: " + "; ".join(incident_result["key_learnings"]))
+        inc_text = "\n".join(inc_lines) if inc_lines else str(incident_result)
         incident_section = f"""
 INCIDENT RESULT (game_over or level_complete)
-{json.dumps(incident_result, indent=2, ensure_ascii=False)}
+{inc_text}
 """
 
+    summary_text = summary.get("notes", "(none)") if summary else "(none)"
+    disc_text = "\n".join(f"  - {d}" for d in discoveries) if discoveries else "  (none)"
+
     return f"""\
-PREVIOUS SUMMARY
-{json.dumps(summary, indent=2, ensure_ascii=False)}
+PREVIOUS SUMMARY: {summary_text}
 
 CURRENT WORLD MODEL
-{json.dumps(world_model, indent=2, ensure_ascii=False)}
-
-EVALUATION RESULT
-{json.dumps(evaluation, indent=2, ensure_ascii=False)}
+{fmt_world_model_prompt(world_model)}
 
 NEW DISCOVERIES
-{json.dumps(discoveries, indent=2, ensure_ascii=False)}
+{disc_text}
 {incident_section}
 Update both the summary and world model. Respond in JSON:
 {{
@@ -63,13 +68,13 @@ Rules:
   - Inferred from related action → confidence 0.5
   - Disproven → confidence 0.0 with updated effect
   - Direction keys: if one tested, infer the other 3.
-- objects: update positions if they moved. Set type to "dynamic"/"static"/"controllable".
+- objects: Set type to "dynamic"/"static"/"controllable".
   Set interaction_tested=true after testing interaction with that object.
 - goal_hypotheses: update confidence based on evidence. Add supporting/contradicting evidence.
   Raise confidence for hypotheses supported by this step's result. Lower for contradicted ones.
 - relationships: add/update if passive interaction observed. Use "name (shape, color)" for types.
   Fill interaction_result once observed. Set confidence 0.7+ when confirmed.
 - interactions: add successful action-triggered interactions. Remove failed ones.
-- dangers: add if game_over occurred near an object.
+- dangers: add if game_over after interaction with an object.
 - plan: update based on top goal hypothesis and current phase.
-- Keep concise. This is the only context OBSERVE and DECIDE will see."""
+- Keep concise."""
