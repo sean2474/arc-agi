@@ -1,4 +1,4 @@
-from .fmt import fmt_world_model_prompt
+from agents.llm_agent.fmt import fmt_world_model_prompt
 
 
 def build_update_message(

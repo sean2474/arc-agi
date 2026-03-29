@@ -1,5 +1,5 @@
 from ..const import ACTION_NUM_TO_NAME
-from .fmt import fmt_objects_prompt, fmt_actions, fmt_relationships
+from agents.llm_agent.fmt import fmt_objects_prompt, fmt_actions, fmt_relationships
 
 
 def _actions_as_names(available_actions: list[dict]) -> str:
@@ -20,6 +20,7 @@ def build_decide_message(
     available_actions: list[dict],
     summary: dict,
     world_model: dict | None = None,
+    history: str = "  (none)",
 ) -> str:
     actions_names = _actions_as_names(available_actions)
     has_click = _has_click(available_actions)
@@ -44,6 +45,7 @@ def build_decide_message(
         subgoal_text += f" [confidence: {conf:.1f}]"
 
     obs_text = observe_result.get("changes", "(none)") if observe_result else "(none)"
+    history_text = history
     summary_text = summary.get("notes", "(none)") if summary else "(none)"
 
     wm = world_model or {}
@@ -52,6 +54,9 @@ def build_decide_message(
 
     return f"""\
 GOAL: {subgoal_text}
+
+ACTION HISTORY (action → result):
+{history_text}
 
 LAST OBSERVATION: {obs_text}
 

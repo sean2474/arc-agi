@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 
 from ..grid_utils import grid_to_image_base64_annotated, grid_to_image_base64
 from ..prompts import build_decide_message
+from ..fmt import fmt_history
 
 
 def do_decide(agent: LLMAgent, current_subgoal: dict, observe_result: dict, curr_grid: list[str]) -> list[str]:
@@ -26,6 +27,7 @@ def do_decide(agent: LLMAgent, current_subgoal: dict, observe_result: dict, curr
         available_actions=agent.game_info.get("available_actions", []),
         summary=agent.summary,
         world_model=wm_prompt,
+        history=fmt_history(agent.history[-20:]),
     )
     parsed = agent._call_vlm(msg, [curr_img], label="decide")
 

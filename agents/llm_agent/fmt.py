@@ -69,6 +69,16 @@ def fmt_world_model_prompt(wm: dict) -> str:
     return "\n".join(lines) if lines else "(none)"
 
 
+def fmt_history(history) -> str:
+    """StepRecord 리스트 → action→observation 히스토리 텍스트."""
+    lines = []
+    for r in history:
+        obs = (r.observation or "").strip()
+        obs_short = obs[:80] + "\u2026" if len(obs) > 80 else obs
+        lines.append(f"  {r.step}. {r.action} \u2192 {obs_short or '(no change)'}")
+    return "\n".join(lines) if lines else "  (none)"
+
+
 def format_events_for_prompt(animation_events: list[dict], result_events: list[dict]) -> str:
     """BlobManager events → LLM 프롬프트용 텍스트. merge 이벤트는 숨김."""
     animation_events = merge_remap(animation_events or [])

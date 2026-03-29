@@ -1,6 +1,6 @@
 """OBSERVE — Phase 2+ 전용. VLM에 before/after 이미지 + 코드 diff 요약 전달."""
 
-from .fmt import fmt_world_model_prompt
+from agents.llm_agent.fmt import fmt_world_model_prompt
 
 
 def build_observe_message(
@@ -32,7 +32,7 @@ GOAL: {goal}
 
 {change_section}
 
-⚠️ NO-CHANGE SHORTCUT: If events are "(none)" AND the two images look identical, skip all steps and respond only with:
+NO-CHANGE SHORTCUT: If events are "(none)" AND the two images look identical, skip all steps and respond only with:
 {{"changes": "no changes observed", "moved_objects": {{}}, "new_objects": {{}}, "static_objects": [], "renamed_objects": {{}}, "relationship_updates": [], "contradictions": []}}
 
 STEP 1 - ACCEPT EVENTS: Treat events as ground truth.

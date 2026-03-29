@@ -1,7 +1,7 @@
 """HYPOTHESIZE — Phase 1, SCAN 직후. 초기 가설 수립."""
 
 from ..const import ACTION_NUM_TO_NAME
-from .fmt import fmt_scan_result
+from agents.llm_agent.fmt import fmt_scan_result
 
 
 def build_hypothesize_message(
