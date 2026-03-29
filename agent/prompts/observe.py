@@ -1,6 +1,6 @@
 """OBSERVE — Phase 2+ 전용. VLM에 before/after 이미지 + 코드 diff 요약 전달."""
 
-from agents.llm_agent.fmt import fmt_world_model_prompt
+from agent.fmt import fmt_world_model_prompt
 
 
 def build_observe_message(

@@ -16,7 +16,7 @@ from .models import StepRecord
 from .world_model import WorldModel
 from .prompts import SYSTEM_PROMPT, parse_llm_response
 from .actions import action_to_gameaction
-from .steps import do_scan, do_hypothesize, do_observe, do_decide, do_incident, do_update
+from .steps import do_scan, do_hypothesize, do_observe, do_decide, do_incident, do_update, do_evaluate
 from .objects import BlobManager
 
 
@@ -399,8 +399,10 @@ class LLMAgent:
                 need_replan = True
                 if self.current_subgoal:
                     self.world_model.mark_plan(self.current_subgoal.get("description", ""), "done")
+                print("  [EVALUATE]")
+                evaluation, discoveries = do_evaluate(self, observe_result, incident_result)
                 print("  [UPDATE]")
-                do_update(self, {}, [], incident_result)
+                do_update(self, evaluation, discoveries, incident_result)
                 self.world_model.update_phase()
 
         # PLANNER + DECIDE

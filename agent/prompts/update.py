@@ -1,4 +1,4 @@
-from agents.llm_agent.fmt import fmt_world_model_prompt
+from agent.fmt import fmt_world_model_prompt
 
 
 def build_update_message(
@@ -24,11 +24,23 @@ INCIDENT RESULT (game_over or level_complete)
     summary_text = summary.get("notes", "(none)") if summary else "(none)"
     disc_text = "\n".join(f"  - {d}" for d in discoveries) if discoveries else "  (none)"
 
+    eval_lines = []
+    if evaluation:
+        eval_lines.append(f"goal_achieved: {evaluation.get('goal_achieved', False)}")
+        if evaluation.get("reasoning"):
+            eval_lines.append(f"reasoning: {evaluation['reasoning']}")
+        if evaluation.get("key_learnings"):
+            eval_lines.append("key_learnings: " + "; ".join(evaluation["key_learnings"]))
+    eval_text = "\n".join(eval_lines) if eval_lines else "(none)"
+
     return f"""\
 PREVIOUS SUMMARY: {summary_text}
 
 CURRENT WORLD MODEL
 {fmt_world_model_prompt(world_model)}
+
+EVALUATION
+{eval_text}
 
 NEW DISCOVERIES
 {disc_text}

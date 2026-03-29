@@ -1,4 +1,4 @@
-from ..const import ACTION_PROMPT_LINE
+from agent.const import ACTION_PROMPT_LINE
 
 SYSTEM_PROMPT = f"""\
 You are playing an unknown game on a 64x64 grid.
