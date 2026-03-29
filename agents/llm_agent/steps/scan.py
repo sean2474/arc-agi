@@ -5,12 +5,17 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..agent import LLMAgent
 
-from ..grid_utils import grid_to_image_base64
+from ..grid_utils import grid_to_image_base64, grid_to_image_base64_annotated, blobs_to_annotation_dict
 from ..prompts import build_scan_message
 
 
-def do_scan(agent: LLMAgent, step: int, curr_grid: list[str], curr_levels: int) -> dict:
-    img_b64 = grid_to_image_base64(curr_grid)
+def do_scan(agent: LLMAgent, step: int, curr_grid: list[str], curr_levels: int,
+           blobs: dict | None = None) -> dict:
+    if blobs:
+        ann = blobs_to_annotation_dict(blobs)
+        img_b64 = grid_to_image_base64_annotated(curr_grid, ann, label_mode="id")
+    else:
+        img_b64 = grid_to_image_base64(curr_grid)
     msg = build_scan_message(
         game_id=agent.game_info.get("game_id", "unknown"),
         available_actions=agent.game_info.get("available_actions", []),
@@ -18,6 +23,7 @@ def do_scan(agent: LLMAgent, step: int, curr_grid: list[str], curr_levels: int) 
         win_levels=agent.game_info.get("win_levels", 0),
         step=step,
         grid=curr_grid,
+        blobs=blobs,
     )
     parsed = agent._call_vlm(msg, [img_b64], label="scan", thinking_budget=4096, max_tokens=8192)
     if parsed is None:

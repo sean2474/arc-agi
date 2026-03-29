@@ -7,8 +7,21 @@ def build_observe_message(
     world_model: dict,
     action_taken: str,
     goal: str,
-    diff_summary: str,
+    diff_summary: str = "",
+    events_text: str = "",
 ) -> str:
+    change_section = ""
+    if events_text:
+        change_section = f"""CODE-DETECTED EVENTS:
+{events_text}
+
+Objects in the images are outlined with their name labels (BEFORE left, AFTER right)."""
+    else:
+        change_section = f"""CODE-COMPUTED DIFF:
+{diff_summary}
+
+The two images show FRAME BEFORE (first) and FRAME AFTER (second)."""
+
     return f"""\
 WORLD MODEL
 {json.dumps(world_model, indent=2, ensure_ascii=False)}
@@ -16,23 +29,18 @@ WORLD MODEL
 ACTION TAKEN: {action_taken}
 GOAL: {goal}
 
-CODE-COMPUTED DIFF:
-{diff_summary}
+{change_section}
 
-The two images show FRAME BEFORE (first) and FRAME AFTER (second).
-Use both the images and the code-computed diff to analyze changes.
+STEP 1 - VERIFY: Do the images confirm the events above?
+  Match labeled objects in images to events. Note any contradictions.
 
-STEP 1 - INTERPRET: What do the changed cells mean?
-  Match changed positions to objects in the WORLD MODEL.
-  Which object moved? Which direction? How far?
+STEP 2 - MISSING: Any changes visible in images NOT captured in events?
 
-STEP 2 - CLASSIFY: Based on the changes:
+STEP 3 - CLASSIFY: Based on the changes:
   - Which objects moved? -> type: "dynamic"
   - Which objects stayed? -> type: "static"
 
-STEP 3 - NEW OBJECTS: Any objects not in the WORLD MODEL?
-
-STEP 4 - NAME REVIEW: For each object in the WORLD MODEL, is the current "name" still appropriate?
+STEP 4 - NAME REVIEW: For each object, is the current "name" still appropriate?
   If a name should change (e.g. you now know "unknown_1" is actually the "exit"), list it in renamed_objects.
   Keep names game-role based — not color or shape based.
 
@@ -53,7 +61,6 @@ Respond in JSON:
 
 renamed_objects format: {{"obj_001": {{"new_name": "exit", "reason": "..."}}}}
 relationship_updates: only fill if a passive event was observed (object disappeared, game_over triggered near object, etc.).
-  Use "name (shape, color)" format from the WORLD MODEL objects.
 
 Rules:
 - Do NOT re-analyze all objects. Focus on CHANGES only.

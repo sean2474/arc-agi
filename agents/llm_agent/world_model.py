@@ -199,6 +199,42 @@ class WorldModel:
     def add_interaction(self, interaction: dict):
         self._data["interactions"].append(interaction)
 
+    # ── BlobManager 동기화 ──
+
+    def sync_from_blobs(self, blobs: dict) -> None:
+        """BlobManager blobs → WorldModel objects 동기화.
+        blob의 위치/색/크기를 world model에 반영.
+        LLM이 부여한 name/type은 blob.name / blob.type_hypothesis에 저장돼 있으므로 그대로 씀.
+        """
+        for oid, b in blobs.items():
+            if oid not in self._data["objects"]:
+                self._data["objects"][oid] = {}
+            obj = self._data["objects"][oid]
+            obj["bbox"] = b.bbox
+            obj["colors"] = list(b.colors) if b.colors else []
+            obj["cell_count"] = b.cell_count
+            obj["is_present"] = b.is_present
+            if b.name:
+                obj.setdefault("name", b.name)
+            if b.type_hypothesis:
+                obj.setdefault("type_hypothesis", b.type_hypothesis)
+        # 트래킹에서 제거된 오브젝트는 world model에서도 제거
+        tracked = set(blobs.keys())
+        for oid in list(self._data["objects"].keys()):
+            if oid not in tracked:
+                del self._data["objects"][oid]
+
+    def push_names_to_blobs(self, blobs: dict) -> None:
+        """WorldModel objects의 name/type → BlobManager blobs에 반영."""
+        for oid, obj in self._data["objects"].items():
+            if not isinstance(obj, dict):
+                continue
+            if oid in blobs:
+                if obj.get("name"):
+                    blobs[oid].name = obj["name"]
+                if obj.get("type_hypothesis"):
+                    blobs[oid].type_hypothesis = obj["type_hypothesis"]
+
     # ── Relationships ──
 
     def get_relationships(self) -> list:

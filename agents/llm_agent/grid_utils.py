@@ -207,7 +207,12 @@ _ANNOTATION_COLORS = [
 ]
 
 
-def grid_to_image_base64_annotated(grid: list[str], objects: dict, scale: int = 8) -> str:
+def grid_to_image_base64_annotated(
+    grid: list[str],
+    objects: dict,
+    scale: int = 8,
+    label_mode: str = "name",  # "name": name or obj_id fallback | "id": always obj_id
+) -> str:
     """compact grid → base64 PNG with bbox outlines + labels for each object."""
     from PIL import ImageDraw
 
@@ -234,12 +239,82 @@ def grid_to_image_base64_annotated(grid: list[str], objects: dict, scale: int = 
         color = _ANNOTATION_COLORS[i % len(_ANNOTATION_COLORS)]
         draw.rectangle([x0, y0, x1, y1], outline=color, width=2)
 
-        display_name = obj.get("name") or obj_id
-        type_hyp = obj.get("type_hypothesis", "")
-        label = display_name if (not type_hyp or type_hyp == "unknown") else f"{display_name}:{type_hyp}"
+        if label_mode == "id":
+            label = obj_id
+        else:
+            display_name = obj.get("name") or obj_id
+            type_hyp = obj.get("type_hypothesis", "")
+            label = display_name if (not type_hyp or type_hyp == "unknown") else f"{display_name}:{type_hyp}"
         draw.text((x0 + 2, y0 + 2), label, fill=color)
 
     return _img_to_base64(img)
+
+
+def blobs_to_annotation_dict(blobs: dict) -> dict:
+    """BlobManager blobs → grid_to_image_base64_annotated용 dict (present blobs만)."""
+    result = {}
+    for oid, b in blobs.items():
+        if not b.is_present:
+            continue
+        result[oid] = {
+            "name": b.name or oid,
+            "bbox": b.bbox,
+            "type_hypothesis": b.type_hypothesis or "unknown",
+        }
+    return result
+
+
+def format_events_for_prompt(animation_events: list[dict], result_events: list[dict]) -> str:
+    """BlobManager events → LLM 프롬프트용 텍스트."""
+    lines = []
+
+    def _fmt(ev: dict) -> str | None:
+        t = ev.get("type", "")
+        f = ev.get("frame", "?")
+        if t == "move":
+            dr, dc = ev.get("delta", [0, 0])
+            return f"  move       {ev.get('obj','?')} Δ({dr:+d},{dc:+d}) f{f}"
+        if t == "collide":
+            return f"  collide    {ev.get('obj_a','?')} × {ev.get('obj_b','?')} f{f}"
+        if t == "disappear":
+            return f"  disappear  {ev.get('obj','?')} cause={ev.get('cause','?')} f{f}"
+        if t == "appear":
+            pos = ev.get("pos", ev.get("last_pos", ["?", "?"]))
+            return f"  appear     {ev.get('obj','?')} at ({pos[0]},{pos[1]}) f{f}"
+        if t == "rotation":
+            return f"  rotation   {ev.get('obj','?')} {ev.get('angle_deg','?')}° f{f}"
+        if t == "transform":
+            return f"  transform  {ev.get('obj','?')} color_diff={ev.get('color_diff',0):.2f} f{f}"
+        if t == "merge":
+            return f"  merge      {ev.get('obj_a','?')} + {ev.get('obj_b','?')} f{f}"
+        if t == "camera_shift":
+            d = ev.get("delta", [0, 0])
+            return f"  camera     Δ({d[0]:+d},{d[1]:+d}) f{f}"
+        if t == "camera_rotation":
+            return f"  camera_rot {ev.get('angle_deg','?')}° f{f}"
+        if t == "game_over":
+            return f"  game_over  f{f}"
+        return None
+
+    if animation_events:
+        lines.append("animation:")
+        for ev in animation_events:
+            s = _fmt(ev)
+            if s:
+                lines.append(s)
+    else:
+        lines.append("animation: (none)")
+
+    if result_events:
+        lines.append("result:")
+        for ev in result_events:
+            s = _fmt(ev)
+            if s:
+                lines.append(s)
+    else:
+        lines.append("result: (none)")
+
+    return "\n".join(lines)
 
 def detect_triggers(
     prev_grid: list[str] | None,

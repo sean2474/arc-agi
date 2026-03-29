@@ -6,54 +6,50 @@
 
 | 역할 | 모델 | 용도 |
 |------|------|------|
-| VLM | Qwen2.5-VL-7B | 전체 단계. SCAN/OBSERVE는 이미지+텍스트, 나머지는 텍스트만. |
+| VLM | Qwen2.5-VL-7B | SCAN(이름/역할 부여), DECIDE, ANALYZE, REDEFINE(이벤트 시), UPDATE |
 
-VLM은 이미지도, 텍스트만도 처리 가능. SCAN/OBSERVE에 이미지 추가 전달.
+VLM은 이미지도, 텍스트만도 처리 가능. SCAN/DECIDE/REDEFINE에 이미지 추가 전달.
+코드가 blob 추출 + diff 계산을 담당 → VLM은 의미론적 해석만.
 
 ## 전체 흐름
 
 ```
 Phase 1 (첫 프레임):
-  SCAN(VLM+이미지) → HYPOTHESIZE(VLM) → UPDATE(VLM) → phase 전환
+  [코드] detect_background + extract_blobs
+  → SCAN(VLM: 이름/역할만) → HYPOTHESIZE(VLM) → UPDATE(VLM) → phase 전환
 
-Phase 2~4 (매 스텝):
-  DECIDE(VLM) → EXECUTE → OBSERVE(VLM+이미지) → EVALUATE(VLM) → UPDATE(VLM)
+Phase 2 (매 스텝):
+  DECIDE(VLM+이미지) → EXECUTE
+  → OBSERVE(코드) blob diff + 이벤트 감지
+      ├─ split/merge/appear → REDEFINE(VLM: 영향 blob만)
+      └─ disappear → is_present=false
+  → ANALYZE(VLM: 코드 diff 수신) → UPDATE(VLM)
 ```
 
 ---
 
-## SCAN (Phase 1 전용) — VLM 사용
+### Phase 1-a: 코드 전처리 (VLM 호출 전)
 
-"여기 뭐가 있지?" — 아무것도 모르는 상태에서 전체 프레임을 처음 분석.
+- `detect_background_colors(grid)` → 배경/벽 색상 집합
+- `extract_blobs(grid, bg_colors)` → 연결 컴포넌트 추출, 각 blob에 정확한 bbox/color/cell_count/shape_tags 부여
+- `obj_001`, `obj_002`... 키 자동 부여
+- HUD 후보 자동 태깅 (가장자리 blob)
+- 결과: blob 목록 (위치/크기/색상 100% 정확)
+
+### Phase 1-b: VLM 호출 — 이름/역할 부여만
 
 - 모델: **VLM (Qwen2.5-VL-7B)**
-- 입력: grid를 **좌표 오버레이 이미지**로 렌더링해서 전달
-  - 64x64 hex → 512x512px 이미지 + 8셀마다 row/col 번호 레이블
-  - LLM이 픽셀 좌표와 그리드 셀 좌표를 혼동하는 할루시네이션 방지
-- 목적: 화면에 있는 모든 오브젝트를 시각적으로 파악
+- 입력: **코드가 추출한 blob 목록** (정확한 bbox/color 포함) + 이미지 (시각적 맥락용)
+- 목적: 각 blob에 게임 역할 기반 이름과 type_hypothesis 부여
 - VLM이 하는 일:
-  - 이미지에서 구분 가능한 오브젝트/영역 식별
-  - 각각의 색(**ARC index**: `0`=white, `e`=green 등), 위치, 크기, 모양 기록
-  - 전체 구조 파악 (사각형, 통로, 경계, 패턴 등)
-  - **같은 역할의 오브젝트는 반드시 하나로 통합** — 동일 색/모양이 여러 개라도 같은 역할이면 1개 항목으로 전체 bbox 반환
-- 하지 않는 일:
+  - blob의 시각적 맥락을 보고 name, type_hypothesis 결정
+  - 예: "희귀 단일 셀 → player", "가장자리 flat 직사각형 → platform"
+- VLM이 하지 않는 일:
+  - **위치/크기/색상 추정 금지** — 코드가 이미 제공
   - 판단, 의도, 액션 제안 금지
-  - 뭐가 뭔지 추측 금지 (전부 type: "unknown")
-- 출력: objects **배열** (LLM이 list로 반환) + patterns
-  - 코드가 `obj_001`, `obj_002`... 키를 자동 부여 (LLM이 ID 관리 불필요)
-- 후처리 (코드):
-  - position/size → bbox 계산
-  - **유효성 검증**: position이 그리드 범위(0~63) 초과 → `RuntimeError`
-  - **색상 검증**: bbox 영역에 해당 ARC color index가 없으면 → `RuntimeError`
-  - 검증 실패 = LLM 할루시네이션 → 즉시 에러, fallback 없음
-- **HUD 감지**: 화면 극단 모서리/가장자리 오브젝트는 거의 확실히 HUD (step_counter, score). LLM이 `name: step_counter/score/hud`로 표기. 게임 액션 대상 아님.
+- 출력: `{"obj_001": {"name": "player", "type_hypothesis": "controllable"}, ...}`
 
-왜 VLM인가:
-- 텍스트 LLM은 64x64 hex 배열에서 오브젝트를 정확히 못 뽑음
-- VLM은 이미지를 직접 보므로 형태/위치 파악이 정확
-- 좌표 오버레이로 셀 번호를 이미지에서 직접 읽을 수 있게 함
-
-**VLM 호출 설정**: `thinking_budget=4096`. SCAN은 thinking이 중요하지만 무한 루프 방지를 위해 예산 제한.
+**VLM 호출 설정**: `thinking_budget=4096, max_tokens=8192`.
 
 ---
 
@@ -78,30 +74,30 @@ Phase 2~4 (매 스텝):
 
 ---
 
-## OBSERVE (Phase 2+) — VLM 사용
+### 코드 이벤트 감지 → REDEFINE 트리거
 
-"뭐가 바뀌었지?" — 이미 오브젝트를 알고 있는 상태. 액션 실행 후 변화 관찰.
+OBSERVE 완료 후, 코드가 blob diff를 분석해서 구조적 이벤트를 감지:
 
-- 모델: **VLM (Qwen2.5-VL-7B)**
-- 입력: before/after **이미지 2장** (world_model 오브젝트 bbox outline + label 어노테이션 포함) + world_model + 코드 diff 요약
-- 목적: 시각적으로 뭐가 바뀌었는지 파악 + diff 요약과 대조
-- VLM이 하는 일:
-  - before/after 이미지를 비교해서 변화를 시각적으로 식별
-  - 코드 diff 요약을 참고해서 어떤 오브젝트가 영향받았는지 판단
-  - 움직인 것 = dynamic, 안 움직인 것 = static 분류
-  - 새로 나타난 오브젝트 감지
-  - passive 이벤트 감지 → `relationships` 업데이트
-    - 예: 오브젝트 A 근처에서 game_over → A의 `interaction_result` 채움
-    - 예: 오브젝트 B에 올라갔더니 오브젝트 C가 사라짐 → 새 relationship 추가
-- 하지 않는 일:
-  - 전체 프레임 분석 (SCAN의 역할)
-  - 판단/의도 금지
-- 출력: changes + 오브젝트 분류 업데이트 + new_objects + relationship_updates + contradictions
+| 이벤트 | 조건 | 처리 |
+|--------|------|------|
+| **split** | 이전에 같이 움직이던 두 blob의 이동 벡터가 달라짐 | REDEFINE 트리거 |
+| **merge** | 이전에 별개였던 두 blob이 touching + 같은 벡터로 이동 | REDEFINE 트리거 |
+| **appear** | 이전 프레임에 없던 blob 등장 | REDEFINE 트리거 |
+| **disappear** | 이전 프레임에 있던 blob 소멸 | `is_present=false` 처리 |
 
-VLM + 코드 diff 병행 이유:
-- VLM이 시각적 변화를 직관적으로 잡고
-- 코드 diff가 정확한 셀 단위 변화를 보완
-- 둘을 함께 주면 더 정확한 관찰 가능
+이벤트가 없으면 REDEFINE 생략 — 매 스텝 실행 아님.
+
+---
+
+## REDEFINE (이벤트 트리거 시만)
+
+- 입력: 이벤트 타입 + **affected blob 목록** + 현재 이미지 (해당 영역 crop 또는 bbox overlay)
+- 목적: split/merge/appear 된 blob들의 name, type_hypothesis 재부여
+- LLM이 하는 일:
+  - 영향받은 blob만 대상 — 전체 재분석 아님
+  - 기존 오브젝트와의 관계 설명 ("이게 obj_003이 split된 것" 등)
+- 출력: affected blob들에 대한 name/type_hypothesis 업데이트
+- SCAN의 축소판 — 전체 그리드가 아닌 변화된 부분만
 
 ---
 
@@ -119,7 +115,7 @@ VLM + 코드 diff 병행 이유:
 
 ## DECIDE (VLM + 이미지)
 
-- 입력: `current_subgoal` + OBSERVE 결과 + objects(위치/bbox 포함, 같은 색상/모양이어도 좌표로 구분) + **bbox 어노테이션 이미지**
+- 입력: `current_subgoal` + objects(bbox 포함, 같은 색상/모양이어도 좌표로 구분) + **bbox 어노테이션 이미지**
 - 목적: 서브골 달성을 위한 **action sequence** 계획
 - **game goal / goal_hypotheses / reports 입력 없음** — 순수 경로/상호작용 계획만
 - 하는 일:
@@ -129,81 +125,134 @@ VLM + 코드 diff 병행 이유:
   - 각 action의 기대 효과 추론
 - 하지 않는 일:
   - 게임 목표 판단 (Planner의 역할)
-  - 관찰 (OBSERVE의 역할)
   - 1개 초과 sequence 금지 → 최대 6개
 - 출력:
   ```json
   {
     "reasoning": "player at (3,5), target at (3,10), wall at col 7. detour: right×2, down×1, right×2",
     "action_sequence": ["right", "right", "down", "right", "right"],
+    "desired_event": {"type": "move", "obj": "obj_001"},
     "subgoal": "reach blue object at (3,10)"
   }
   ```
-  click 액션이 필요한 경우:
+  click 액션 예시:
   ```json
   {
-    "reasoning": "need to click on platform at bbox row 46-47, col 33-37",
-    "action_sequence": [["click", "platform"], "right"],
+    "reasoning": "need to click on platform",
+    "action_sequence": [["click", "platform"]],
+    "desired_event": {"type": "transform", "obj": "obj_004"},
     "subgoal": "activate platform"
   }
   ```
-  - click 아이템은 **배열** `["click", "obj_name"]` 형식 — 일반 액션 문자열과 혼용 금지
-  - `"click"` 단독 문자열은 유효하지 않음 → `RuntimeError`
+  - click 아이템은 **배열** `["click", "obj_name"]` 형식. `"click"` 단독 문자열 → `RuntimeError`
+
+### desired_event 타입
+
+| 타입 | 의미 |
+|------|------|
+| `move` | obj가 이동함 |
+| `appear` | obj가 등장함 |
+| `disappear` | obj가 소멸함 (수집 등) |
+| `collide` | obj_a와 obj_b가 접촉 |
+| `transform` | obj가 모양/색상 변화 |
+| `any_change` | obj에 어떤 변화든 (탐색형이 아닌 경우 기본값) |
 
 ---
 
-## EXECUTE
+## EXECUTE + 애니메이션 분석 (코드)
 
-- 코드에서 처리 (LLM 호출 없음)
-- env.step(action) 실행
-- before/after frame 저장
+- env.step(action) 실행 → `obs.frame` 리스트 반환 (중간 애니메이션 프레임 포함)
+- LLM 없음. 코드가 전체 프레임 시퀀스를 분석
+
+### 애니메이션 프레임 분석 파이프라인
+
+연속 프레임 쌍 `(frame[i] → frame[i+1])` 마다:
+
+```
+1. 카메라 shift 감지 (SSE 기반, 탐색 범위 ±4)
+   - 모든 픽셀 SSE. 배경이 화면의 대부분이므로 배경 패턴이 dominant
+   - 이전 프레임 대비 diff < threshold → camera shift 없음으로 처리
+
+2. 카메라 shift 있으면 → 모든 tracked blob의 bbox를 (-dr, -dc) 보정
+
+3. 보정된 위치 기준으로 오브젝트 이동 delta 계산
+   - 보정 후에도 위치가 달라진 blob → 자체 이동 (move 이벤트)
+   - 보정 후 사라진 blob → disappear
+   - 보정 후 새로 나타난 blob → appear
+```
+
+### 연속 이벤트 merge
+
+```
+같은 blob이 같은 방향으로 N프레임 연속 이동 → 하나의 move 이벤트로 압축
+  frame0→1: obj_001 (dr=0, dc=+1)
+  frame1→2: obj_001 (dr=0, dc=+1)
+  frame2→3: obj_001 (dr=0, dc=+1)
+  → move(obj_001, delta=(0, +3), frames=[0, 2])
+
+방향이 바뀌거나 멈추면 → 새 이벤트로 분리
+appear / disappear / collide → 발생한 프레임 시점에 기록
+```
+
+### 최종 출력 (ANALYZE에 전달)
+
+```json
+[
+  {"type": "camera_shift", "delta": [0, -2], "frames": [0, 3]},
+  {"type": "move", "obj": "obj_001", "delta": [0, 3], "frames": [0, 2]},
+  {"type": "collide", "obj_a": "obj_001", "obj_b": "obj_005", "frame": 3},
+  {"type": "disappear", "obj": "obj_005", "frame": 3, "cause": "collide_destroy"}
+]
+```
 
 ---
 
-## ACTION ANALYZER (VLM)
+## ANALYZE (코드, VLM 호출 없음)
 
-- 입력: `planned_sequence` + `executed_action` + OBSERVE 결과 + `current_subgoal`
-- 목적: 방금 실행된 1개 액션이 계획대로 됐는지 판정 + 시퀀스 계속 여부 결정
-- 하는 일:
-  - OBSERVE 결과가 기대와 일치하는지 확인
-  - 예상 밖 변화(적 이동, 오브젝트 소멸 등) 감지 → abort 트리거
-  - 서브골 달성 여부 판정
-  - 배운 것 정리 (discoveries)
-- 하지 않는 일:
-  - grid 원본 비교 (OBSERVE가 이미 했음)
-  - 다음 액션 계획 (DECIDE의 역할)
-  - 합리화 금지 — 실패하면 실패라고 정직하게
-- 출력:
-  ```json
-  {
-    "status": "continue | abort | success",
-    "reason": "...",
-    "discoveries": [...]
-  }
-  ```
-  - `continue`: sequence 다음 action 실행
-  - `abort`: 예상 밖 변화 → pending_sequence 초기화 → Planner에서 re-plan
-  - `success`: 서브골 달성 → plan을 `done`으로 → Planner에서 다음 plan 선택
+DECIDE가 반환한 `desired_event`와 실제 코드 diff를 비교해서 continue/abort/success 판정.
+
+### desired_event 있는 plan
+
+| 조건 | 결과 |
+|------|------|
+| desired_event 타입이 실제 diff와 일치 | `continue` |
+| desired_event 타입 불일치 또는 변화 없음 | `abort` — 액션 효과 없음 |
+| desired obj 외 예상 밖 blob 변화 | `abort` — 환경 변화 감지 |
+| `game_over` | `abort` + INCIDENT 트리거 |
+| `level_complete` | `success` + INCIDENT 트리거 |
+| desired_event가 `disappear`이고 obj `is_present=false` 됨 | `success` |
+
+### desired_event 없는 plan (탐색형)
+
+- 단일 action만 허용 (sequence 1개)
+- 실행 후 무조건 UPDATE 트리거 → 배운 것 기록
+- abort/continue 구분 없음
+
+### 출력 (코드 내부)
+
+```python
+{"status": "continue | abort | success", "reason": "..."}
+```
 
 ---
 
 ## UPDATE
 
-- 입력: world_model + EVALUATE report + discoveries + (INCIDENT 결과)
+- 입력: world_model + ANALYZE discoveries + (INCIDENT 결과)
 - 목적: world_model과 summary를 갱신
 - 하는 일:
   - action confidence 갱신 (테스트 결과 반영)
-  - objects 상태 업데이트 (위치, type, interaction_tested)
+  - objects 상태 업데이트 (type, interaction_tested)
   - interactions 추가/제거
   - relationships 갱신
-    - OBSERVE에서 감지된 passive 이벤트 → `interaction_result` 채움, confidence 상승
+    - 코드 diff에서 감지된 passive 이벤트 → `interaction_result` 채움, confidence 상승
     - 반증된 relationship → confidence 낮춤 또는 제거
   - dangers 추가
   - 방향키: 1개 테스트 결과로 나머지 3개 추론
   - plans 갱신 (새 서브골 추가, done/failed 정리)
 - 하지 않는 일:
-  - 관찰 (OBSERVE의 역할)
-  - 판단 (EVALUATE의 역할)
+  - 오브젝트 관찰 또는 위치 추적 (코드의 역할)
+  - 판단 (ANALYZE의 역할)
 - 출력: updated_summary + updated_world_model
 
 ---
@@ -211,8 +260,8 @@ VLM + 코드 diff 병행 이유:
 ## INCIDENT (특수)
 
 - game_over 또는 level_complete 시에만 호출
-- EVALUATE 전에 실행
+- ANALYZE 전에 실행
 - 목적: 사건 원인 분석
   - game_over: 뭐가 원인이었는지, 어떻게 피할 수 있는지
   - level_complete: 뭐가 트리거였는지, 다음 레벨에도 적용 가능한지
-- 출력: incident_result → EVALUATE와 UPDATE에 전달
+- 출력: incident_result → ANALYZE와 UPDATE에 전달

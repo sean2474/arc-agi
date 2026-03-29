@@ -16,6 +16,7 @@ from .world_model import WorldModel
 from .prompts import SYSTEM_PROMPT, parse_llm_response
 from .actions import action_to_gameaction
 from .steps import do_scan, do_hypothesize, do_observe, do_decide, do_analyze, do_incident, do_update
+from .objects import BlobManager
 
 
 def timed(fn):
@@ -52,6 +53,10 @@ class LLMAgent:
         self.pending_sequence: list = []   # 다음에 실행할 액션 목록
         self.planned_sequence: list = []   # DECIDE가 생성한 원본 시퀀스 (ANALYZE 참조용)
         self.current_subgoal: dict = {}    # 현재 active plan
+
+        self._blob_manager: BlobManager | None = None
+        self._last_anim_events: list[dict] = []
+        self._last_result_events: list[dict] = []
 
         self.reports: list[dict] = []
         self.game_info: dict = {}
@@ -147,10 +152,29 @@ class LLMAgent:
         # ── Phase 1: SCAN → HYPOTHESIZE → UPDATE ──
         if phase == "static_observation":
             print(f"  [{phase}]")
-            print(f"  [SCAN]")
-            scan_result = do_scan(self, step, curr_grid, curr_levels)
 
-            # objects merge (grid 스캔으로 bbox 계산 포함)
+            # BlobManager 초기화
+            if self._blob_manager is None:
+                self._blob_manager = BlobManager(curr_grid)
+                print(f"  [BLOBS] detected: {self._blob_manager.blob_count}")
+
+            print(f"  [SCAN]")
+            scan_result = do_scan(self, step, curr_grid, curr_levels,
+                                  blobs=self._blob_manager.blobs)
+
+            # object_roles (blob 기반 응답) 처리
+            object_roles = scan_result.get("object_roles", {})
+            if object_roles and isinstance(object_roles, dict):
+                for oid, role in object_roles.items():
+                    if not isinstance(role, dict):
+                        continue
+                    b = self._blob_manager.blobs.get(oid)
+                    if b:
+                        b.name = role.get("name") or b.name
+                        b.type_hypothesis = role.get("type_hypothesis") or b.type_hypothesis
+                self.world_model.sync_from_blobs(self._blob_manager.blobs)
+
+            # 기존 방식 fallback (blobs 없을 때 LLM이 objects 반환)
             scan_objects = scan_result.get("objects", {})
             if scan_objects and isinstance(scan_objects, dict):
                 enrich_objects_bbox(scan_objects, curr_grid)
@@ -228,10 +252,27 @@ class LLMAgent:
                 self.world_model.reset_for_new_level()
                 self.pending_sequence = []
 
+            # BlobManager step (animation frames 전달)
+            if self._blob_manager is not None:
+                anim_frames = [frame_to_compact(f) for f in obs.frame]
+                anim_ev, result_ev, _lvl = self._blob_manager.step(
+                    anim_frames, curr_levels, curr_state.value
+                )
+                self._last_anim_events = anim_ev
+                self._last_result_events = result_ev
+                self.world_model.sync_from_blobs(self._blob_manager.blobs)
+
             # OBSERVE
             print("  [OBSERVE]")
             action_label = str(self.last_action) if isinstance(self.last_action, list) else self.last_action
-            observe_result = do_observe(self, action_label, str(self.current_subgoal.get("description", "")), self.prev_grid, curr_grid)
+            observe_result = do_observe(
+                self, action_label,
+                str(self.current_subgoal.get("description", "")),
+                self.prev_grid, curr_grid,
+                blobs=self._blob_manager.blobs if self._blob_manager else None,
+                animation_events=self._last_anim_events if self._blob_manager else None,
+                result_events=self._last_result_events if self._blob_manager else None,
+            )
 
             # objects merge
             for key in ("moved_objects", "new_objects"):
@@ -243,6 +284,8 @@ class LLMAgent:
             renames = observe_result.get("renamed_objects", {})
             if renames and isinstance(renames, dict):
                 self.world_model.apply_renames(renames)
+                if self._blob_manager:
+                    self.world_model.push_names_to_blobs(self._blob_manager.blobs)
                 for obj_id, info in renames.items():
                     new_name = info.get("new_name") or info.get("name") if isinstance(info, dict) else None
                     if new_name:

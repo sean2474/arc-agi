@@ -21,30 +21,10 @@ import argparse
 from datetime import datetime
 
 import arc_agi
-from arcengine import GameAction, GameState
+from agents.llm_agent.const import ARC_COLORS
+from arcengine import GameAction
 from flask import Flask, jsonify, request, render_template_string
-
-
-# ARC 공식 16색 팔레트
-ARC_COLORS = [
-    "#000000",  #  0: 검정
-    "#0074D9",  #  1: 파랑
-    "#FF4136",  #  2: 빨강
-    "#2ECC40",  #  3: 초록
-    "#FFDC00",  #  4: 노랑
-    "#AAAAAA",  #  5: 회색
-    "#F012BE",  #  6: 마젠타
-    "#FF851B",  #  7: 주황
-    "#7FDBFF",  #  8: 하늘
-    "#870C25",  #  9: 적갈색
-    "#B10DC9",  # 10: 보라
-    "#39CCCC",  # 11: 청록
-    "#01FF70",  # 12: 연두
-    "#85144b",  # 13: 자주
-    "#3D9970",  # 14: 올리브
-    "#FFFFFF",  # 15: 흰색
-]
-
+from agents.llm_agent.objects.manager import BlobManager, frame_to_compact
 
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html>
@@ -66,11 +46,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .btn:active { background: #533483; }
   .btn.active { background: #533483; border-color: #7fdbff; }
   #info { margin-top: 12px; font-size: 12px; color: #666; text-align: center; line-height: 1.6; }
-  #log { margin-top: 12px; max-height: 150px; overflow-y: auto; font-size: 11px; color: #888;
+  #log { margin-top: 12px; max-height: 120px; overflow-y: auto; font-size: 11px; color: #888;
          width: 100%; max-width: 520px; background: #111; border-radius: 6px; padding: 8px; }
   .log-entry { margin: 2px 0; }
   .win { color: #2ecc40; font-weight: bold; }
   .gameover { color: #ff4136; font-weight: bold; }
+  #events-panel { margin-top: 8px; max-height: 160px; overflow-y: auto; font-size: 11px;
+                  width: 100%; max-width: 520px; background: #0a0a1a; border-radius: 6px;
+                  padding: 8px; border: 1px solid #2a2a5a; }
+  .ev-title { color: #7fdbff; font-size: 10px; margin-bottom: 4px; letter-spacing: 1px; }
+  .ev-move { color: #01ff70; } .ev-appear { color: #ffdc00; }
+  .ev-disappear { color: #ff4136; } .ev-collide { color: #ff851b; }
+  .ev-camera { color: #7fdbff; } .ev-blob { color: #aaaaaa; font-size: 10px; }
+  .ev-merged { color: #7fdbff; font-weight: bold; }
+  .ev-merge { color: #cc5de8; font-weight: bold; }
+  .ev-section { color: #555; font-size: 9px; letter-spacing: 1px; padding-top: 2px; }
+  .btn-blobs { border-color: #01ff70; }
+  .btn-blobs.off { border-color: #555; color: #555; }
 </style>
 </head>
 <body>
@@ -86,12 +78,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     {% endfor %}
     <button class="btn" onclick="doReset()" style="border-color:#ff851b;">⟲ RESET</button>
     <button class="btn" onclick="doSave()" style="border-color:#2ecc40;">💾 SAVE</button>
+    <button id="blobToggle" class="btn btn-blobs" onclick="toggleBlobs()">🔍 Blobs</button>
   </div>
   <div id="info">
     ← ↑ → ↓ or 1~7: action &nbsp;|&nbsp; R: reset &nbsp;|&nbsp; S: save<br>
     클릭: complex action (좌표 전송) &nbsp;|&nbsp; 저장: {{ output }}
   </div>
   <div id="log"></div>
+  <div id="events-panel">
+    <div class="ev-title">⚡ EVENTS &nbsp; <span id="blob-count" style="color:#555;"></span></div>
+    <div id="events-log"></div>
+  </div>
 
 <script>
 const COLORS = {{ colors | tojson }};
@@ -109,6 +106,20 @@ const KEY_MAP = {
 const VALID_ACTIONS = new Set({{ action_values | tojson }});
 const COMPLEX_ACTION = {{ complex_action }};
 
+let currentGrid = null;
+let currentBlobs = [];
+let showBlobOverlay = true;
+
+const BLOB_PALETTE = [
+  '#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff922b',
+  '#cc5de8','#22b8cf','#f06595','#74c0fc','#a9e34b'
+];
+function blobColor(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return BLOB_PALETTE[h % BLOB_PALETTE.length];
+}
+
 function drawGrid(grid) {
   for (let y = 0; y < 64; y++) {
     const row = grid[y];
@@ -120,12 +131,123 @@ function drawGrid(grid) {
   }
 }
 
+function drawBlobs(blobs) {
+  if (!blobs || !showBlobOverlay) return;
+  ctx.save();
+  ctx.font = 'bold 7px monospace';
+  for (const b of blobs) {
+    const {row_min, row_max, col_min, col_max} = b.bbox;
+    const x = col_min * CELL, y = row_min * CELL;
+    const w = (col_max - col_min + 1) * CELL;
+    const h = (row_max - row_min + 1) * CELL;
+    const col = blobColor(b.id);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    const label = (b.name && b.name !== b.id) ? b.name : b.id.replace('obj_', '#');
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(x, y, tw + 4, 9);
+    ctx.fillStyle = col;
+    ctx.fillText(label, x + 2, y + 8);
+  }
+  ctx.restore();
+}
+
+function render(grid, blobs) {
+  if (grid !== undefined) currentGrid = grid;
+  if (blobs !== undefined) currentBlobs = blobs || [];
+  drawGrid(currentGrid);
+  drawBlobs(currentBlobs);
+}
+
+function toggleBlobs() {
+  showBlobOverlay = !showBlobOverlay;
+  const btn = document.getElementById('blobToggle');
+  btn.textContent = showBlobOverlay ? '🔍 Blobs' : '🔍 OFF';
+  btn.classList.toggle('off', !showBlobOverlay);
+  if (currentGrid) render();
+}
+
 function addLog(msg, cls) {
   const d = document.createElement('div');
   d.className = 'log-entry' + (cls ? ' ' + cls : '');
   d.textContent = msg;
   logEl.prepend(d);
 }
+
+const evLogEl = document.getElementById('events-log');
+const blobCountEl = document.getElementById('blob-count');
+const EV_CLASS = {
+  'move': 'ev-move', 'appear': 'ev-appear', 'disappear': 'ev-disappear',
+  'collide': 'ev-collide', 'camera_shift': 'ev-camera', 'camera_rotation': 'ev-camera',
+  'rotation': 'ev-move', 'transform': 'ev-appear', 'merge': 'ev-merge'
+};
+function isMerged(ev) {
+  return ev.frames && ev.frames[1] > ev.frames[0];
+}
+function fmtEvent(ev) {
+  if (ev.type === 'move') {
+    const d = ev.delta ? `Δ(${ev.delta[0]},${ev.delta[1]})` : '';
+    const nf = ev.frames ? (ev.frames[1] - ev.frames[0] + 1) : 1;
+    const f = ev.frames ? (isMerged(ev) ? ` ×${nf}f` : ` f${ev.frames[0]}`) : '';
+    return `↕ ${ev.obj} ${d}${f}`;
+  } else if (ev.type === 'appear') {
+    return `✦ appear ${ev.obj} @[${ev.pos}]`;
+  } else if (ev.type === 'disappear') {
+    return `✗ disappear ${ev.obj} [${ev.cause}]`;
+  } else if (ev.type === 'collide') {
+    return `⚡ ${ev.obj_a} × ${ev.obj_b}`;
+  } else if (ev.type === 'camera_shift') {
+    return `📷 camera Δ(${ev.delta[0]},${ev.delta[1]})`;
+  } else if (ev.type === 'camera_rotation') {
+    return `📷 cam rot ${ev.angle_deg}°`;
+  } else if (ev.type === 'rotation') {
+    return `↻ ${ev.obj} ${ev.angle_deg}°`;
+  } else if (ev.type === 'transform') {
+    return `✨ transform ${ev.obj} Δcol=${ev.color_diff}`;
+  } else if (ev.type === 'merge') {
+    return `🔗 merge ${ev.obj_a} + ${ev.obj_b}`;
+  }
+  return JSON.stringify(ev);
+}
+function showEvents(animEvents, resultEvents, blobCount) {
+  if (blobCount !== undefined) blobCountEl.textContent = `[${blobCount} blobs]`;
+  const allEmpty = (!animEvents || animEvents.length === 0) && (!resultEvents || resultEvents.length === 0);
+  if (allEmpty) return;
+
+  // result events (bottom of this step block, shown first since we prepend)
+  if (resultEvents && resultEvents.length > 0) {
+    const header = document.createElement('div');
+    header.className = 'log-entry ev-section';
+    header.textContent = '▸ result';
+    evLogEl.prepend(header);
+    [...resultEvents].reverse().forEach(ev => {
+      const d = document.createElement('div');
+      const mergedCls = (ev.type === 'move' && isMerged(ev)) ? ' ev-merged' : '';
+      d.className = 'log-entry ' + (EV_CLASS[ev.type] || '') + mergedCls;
+      d.textContent = '  ' + fmtEvent(ev);
+      evLogEl.prepend(d);
+    });
+  }
+
+  // animation events
+  if (animEvents && animEvents.length > 0) {
+    const header = document.createElement('div');
+    header.className = 'log-entry ev-section';
+    header.textContent = '▸ animation';
+    evLogEl.prepend(header);
+    [...animEvents].reverse().forEach(ev => {
+      const d = document.createElement('div');
+      const mergedCls = (ev.type === 'move' && isMerged(ev)) ? ' ev-merged' : '';
+      d.className = 'log-entry ' + (EV_CLASS[ev.type] || '') + mergedCls;
+      d.textContent = '  ' + fmtEvent(ev);
+      evLogEl.prepend(d);
+    });
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function sendAction(actionValue, data) {
   const body = { action: actionValue };
@@ -134,13 +256,22 @@ async function sendAction(actionValue, data) {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
   });
   const result = await resp.json();
-  drawGrid(result.grid);
+
+  // Play animation frames sequentially, then show final state with blobs
+  const frames = result.anim_frames || [];
+  for (const frame of frames) {
+    render(frame, null);
+    await sleep(60);
+  }
+  render(result.grid, result.blobs);
+
   const state = result.state;
   const lvl = result.levels_completed + '/' + result.win_levels;
   statusEl.textContent = 'step ' + result.step + '  |  state: ' + state + '  |  levels: ' + lvl;
 
   const cls = state === 'WIN' ? 'win' : state === 'GAME_OVER' ? 'gameover' : '';
   addLog('[step ' + result.step + '] ' + result.action_name + ' → ' + state + ' levels=' + lvl, cls);
+  showEvents(result.animation_events, result.result_events, result.blob_count);
 
   if (state === 'WIN') statusEl.style.color = '#2ecc40';
   else if (state === 'GAME_OVER') statusEl.style.color = '#ff4136';
@@ -177,17 +308,15 @@ canvas.addEventListener('click', (e) => {
 
 // 초기 로드
 fetch('/state').then(r => r.json()).then(result => {
-  drawGrid(result.grid);
+  render(result.grid, result.blobs);
   statusEl.textContent = 'step ' + result.step + '  |  state: ' + result.state + '  |  levels: ' + result.levels_completed + '/' + result.win_levels;
   addLog('[step 0] RESET → ' + result.state);
+  if (result.blob_count !== undefined) blobCountEl.textContent = `[${result.blob_count} blobs]`;
 });
 </script>
 </body>
 </html>"""
 
-
-def frame_to_compact(frame):
-    return ["".join(format(v, "x") for v in row) for row in frame]
 
 
 def build_step_record(step_num, action_name, obs):
@@ -263,6 +392,10 @@ def main():
     last_grid = frame_to_compact(obs.frame[-1])
     print(f"[step 0] RESET → state={obs.state.value}, levels=0/{obs.win_levels}")
 
+    # Blob tracking state
+    manager = BlobManager(last_grid)
+    print(f"[step 0] blobs detected: {manager.blob_count}")
+
     # Flask app
     app = Flask(__name__)
 
@@ -280,12 +413,15 @@ def main():
 
     @app.route("/state")
     def get_state():
+        blob_list = manager.serialize_blobs()
         return jsonify({
             "grid": last_grid,
             "step": state["step_num"],
             "state": trajectory[-1]["state"],
             "levels_completed": trajectory[-1]["levels_completed"],
             "win_levels": game_info["win_levels"],
+            "blobs": blob_list,
+            "blob_count": len(blob_list),
         })
 
     @app.route("/action", methods=["POST"])
@@ -295,6 +431,8 @@ def main():
         action_value = body.get("action", 0)
         action_data = body.get("data")
 
+        prev_grid_snapshot = last_grid
+
         if action_value == 0:
             state["step_num"] += 1
             obs_result = env.step(GameAction.RESET)
@@ -302,28 +440,53 @@ def main():
         elif action_value in action_map:
             action = action_map[action_value]
             if action.is_complex() and action_data:
-                action.set_data({"x": action_data["x"], "y": action_data["y"]})
                 action_name = f"{action.name}({action_data['x']},{action_data['y']})"
             else:
+                action_data = None
                 action_name = action.name
             state["step_num"] += 1
-            obs_result = env.step(action)
+            obs_result = env.step(action, data=action_data if action_data else None)
         else:
             return jsonify({"error": "invalid action"}), 400
 
-        last_grid = frame_to_compact(obs_result.frame[-1])
+        raw_frames = obs_result.frame
+        last_grid = frame_to_compact(raw_frames[-1]) if raw_frames else prev_grid_snapshot
         record = build_step_record(state["step_num"], action_name, obs_result)
         trajectory.append(record)
 
-        print(f"[step {state['step_num']}] {action_name} → state={obs_result.state.value}, levels={obs_result.levels_completed}/{game_info['win_levels']}")
+        # --- Blob + event analysis ---
+        anim_frames = [frame_to_compact(f) for f in raw_frames]
+        if not anim_frames:
+            anim_frames = [last_grid]  # no animation: compare prev → final in one step
+        if action_value == 0:
+            manager.reset(last_grid)
+            events = []
+            result_events = []
+            level_transition_info = None
+        else:
+            events, result_events, level_transition_info = manager.step(
+                anim_frames, obs_result.levels_completed, obs_result.state.value
+            )
+
+        blob_count = manager.blob_count
+        print(f"[step {state['step_num']}] {action_name} → state={obs_result.state.value}, "
+              f"levels={obs_result.levels_completed}/{game_info['win_levels']}, "
+              f"blobs={blob_count}, anim={[e['type'] for e in events]}, result={[e['type'] for e in result_events]}")
 
         return jsonify({
             "grid": last_grid,
+            "anim_frames": anim_frames,
             "step": state["step_num"],
             "state": obs_result.state.value,
             "levels_completed": obs_result.levels_completed,
             "win_levels": game_info["win_levels"],
             "action_name": action_name,
+            "animation_events": events,
+            "result_events": result_events,
+            "events": events + result_events,
+            "level_transition": level_transition_info,
+            "blob_count": blob_count,
+            "blobs": manager.serialize_blobs(),
         })
 
     @app.route("/save", methods=["POST"])
