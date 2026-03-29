@@ -114,6 +114,12 @@ def _remap_blobs(
 class BlobManager:
     """Tracks blob state across animation frames and game steps."""
 
+    def _populate_archive(self, blobs: dict) -> None:
+        for oid, b in blobs.items():
+            sig = frozenset(b.colors) if b.colors else frozenset()
+            if sig not in self._archive:
+                self._archive[sig] = oid
+
     def __init__(self, initial_grid: list[str]):
         bg = detect_background_colors(initial_grid)
         blobs = extract_blobs(initial_grid, bg)
@@ -130,10 +136,7 @@ class BlobManager:
         # Persists across level transitions so the same blob type always gets
         # the same ID, allowing the agent to recognise recurring objects.
         self._archive: dict[frozenset, str] = {}
-        for oid, b in blobs.items():
-            sig = frozenset(b.colors) if b.colors else frozenset()
-            if sig not in self._archive:
-                self._archive[sig] = oid
+        self._populate_archive(blobs)
 
     @property
     def blobs(self) -> dict:
@@ -175,11 +178,7 @@ class BlobManager:
         self._ever_moved_sigs = set()
         self._levels_completed = 0
         self._covered_by = {}
-        # Repopulate archive with reset blobs (archive persists across resets).
-        for oid, b in blobs.items():
-            sig = frozenset(b.colors) if b.colors else frozenset()
-            if sig not in self._archive:
-                self._archive[sig] = oid
+        self._populate_archive(blobs)
 
     def step(
         self,
@@ -294,15 +293,14 @@ class BlobManager:
             if not is_camera_moving:
                 first_movers: dict[frozenset, list] = {}
                 sig_to_pid: dict[frozenset, str] = {}
-                ShapeKey = tuple  # (frozenset[str], int)
-                prev_shape_count: dict[ShapeKey, int] = {}
+                prev_shape_count: dict[tuple, int] = {}
                 for pb in corrected.values():
                     if pb.is_present:
                         sig = frozenset(pb.colors)
                         sig_to_pid[sig] = pb.instance_id
                         key = (sig, pb.cell_count)
                         prev_shape_count[key] = prev_shape_count.get(key, 0) + 1
-                curr_shape_count: dict[ShapeKey, int] = {}
+                curr_shape_count: dict[tuple, int] = {}
                 for cb in curr_raw.values():
                     key = (frozenset(cb.colors), cb.cell_count)
                     curr_shape_count[key] = curr_shape_count.get(key, 0) + 1
@@ -334,27 +332,22 @@ class BlobManager:
                                 name_b = (corrected[pid_b].name or pid_b) if pid_b else str(sig_b)
                                 new_merge_events.append({
                                     "type": "merge",
-                                    "obj_a": name_a,
-                                    "obj_b": name_b,
+                                    "obj_a": pid_a,
+                                    "obj_b": pid_b,
+                                    "name_a": name_a,
+                                    "name_b": name_b,
                                     "frame": i,
                                 })
                 if new_merge_events:
-                    merged_name_pairs = {
+                    merged_obj_pairs = {
                         frozenset([me["obj_a"], me["obj_b"]]) for me in new_merge_events
                     }
                     frame_events[-1] = [
                         e for e in frame_events[-1]
                         if not (e["type"] == "collide"
-                                and frozenset([e["obj_a"], e["obj_b"]]) in merged_name_pairs)
+                                and frozenset([e["obj_a"], e["obj_b"]]) in merged_obj_pairs)
                     ]
-                    merged_pid_pairs = {
-                        frozenset([sig_to_pid[sig_a], sig_to_pid[sig_b]])
-                        for si2, sig_a in enumerate(sigs)
-                        for sig_b in sigs[si2 + 1:]
-                        if (first_movers[sig_a] == first_movers[sig_b]
-                            and sig_to_pid.get(sig_a) and sig_to_pid.get(sig_b))
-                    }
-                    prev_collide_pairs -= merged_pid_pairs
+                    prev_collide_pairs -= merged_obj_pairs
                     cur_events = frame_events[-1]
                     insert_at = next(
                         (j for j, e in enumerate(cur_events) if e["type"] == "collide"),
@@ -421,8 +414,6 @@ class BlobManager:
                 ]
                 for pid in absorbed:
                     del current_blobs[pid]
-
-            if self._color_merge_groups:
                 current_blobs = apply_color_merge_groups(current_blobs, self._color_merge_groups)
 
         # Post-loop: first camera frame 이전의 ALL unknown-cause disappear 소급 제거.

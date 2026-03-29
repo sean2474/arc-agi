@@ -1,4 +1,4 @@
-from collections import Counter
+from collections import Counter, deque
 from .object import Blob
 
 
@@ -211,10 +211,10 @@ def extract_blobs(
 
             # BFS flood fill — 4-connected, same color only
             cells: list[tuple] = []
-            queue = [(r, c)]
+            queue: deque = deque([(r, c)])
             visited[r][c] = True
             while queue:
-                nr, nc = queue.pop(0)
+                nr, nc = queue.popleft()
                 cells.append((nr, nc))
                 for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
                     rr, cc = nr + dr, nc + dc

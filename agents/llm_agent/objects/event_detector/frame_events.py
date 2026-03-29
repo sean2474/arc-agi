@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 
 from ..object import Blob
-from .matching import match_blobs, _bbox_overlaps
-from .rotation import _detect_rotation_or_transform
+from .matching import match_blobs, bbox_overlaps
+from .rotation import detect_rotation_or_transform
 
 
 _REAPPEAR_DIST = 8
@@ -78,9 +78,9 @@ def detect_frame_events(
             label = pb.name or pid
             covering = [
                 other.bbox for oid, other in curr_blobs.items()
-                if oid != cid and other.is_present and _bbox_overlaps(cb.bbox, other.bbox)
+                if oid != cid and other.is_present and bbox_overlaps(cb.bbox, other.bbox)
             ]
-            result = _detect_rotation_or_transform(
+            result = detect_rotation_or_transform(
                 arr_a, arr_b, raw_bbox_a, cb.bbox, pb.cell_count, cb.cell_count,
                 debug_label=label,
                 covering_bboxes=covering or None,
@@ -178,23 +178,16 @@ def detect_frame_events(
     # --- appear events ---
     absent_prev = {pid: pb for pid, pb in prev_blobs.items() if not pb.is_present}
     for cid in unmatched_curr:
-        cb = curr_blobs[cid]
-        is_reappear = False
-        for pb in absent_prev.values():
-            if set(pb.colors) != set(cb.colors):
-                continue
-            ref = pb.last_seen_bbox or pb.bbox
-            ref_center = (
-                (ref["row_min"] + ref["row_max"]) // 2,
-                (ref["col_min"] + ref["col_max"]) // 2,
-            )
-            if (abs(cb.center()[0] - ref_center[0])
-                    + abs(cb.center()[1] - ref_center[1])) <= _REAPPEAR_DIST:
-                is_reappear = True
-                break
-        if is_reappear:
-            continue
         if not emit_appear:
+            continue
+        cb = curr_blobs[cid]
+        is_reappear = any(
+            set(pb.colors) == set(cb.colors)
+            and (abs(cb.center()[0] - ((pb.last_seen_bbox or pb.bbox)["row_min"] + (pb.last_seen_bbox or pb.bbox)["row_max"]) // 2)
+                 + abs(cb.center()[1] - ((pb.last_seen_bbox or pb.bbox)["col_min"] + (pb.last_seen_bbox or pb.bbox)["col_max"]) // 2)) <= _REAPPEAR_DIST
+            for pb in absent_prev.values()
+        )
+        if is_reappear:
             continue
         events.append({
             "type": "appear",
@@ -209,7 +202,7 @@ def detect_frame_events(
     for i, cid_a in enumerate(matched_curr_ids):
         for cid_b in matched_curr_ids[i + 1:]:
             cb_a, cb_b = curr_blobs[cid_a], curr_blobs[cid_b]
-            if not _bbox_overlaps(cb_a.bbox, cb_b.bbox):
+            if not bbox_overlaps(cb_a.bbox, cb_b.bbox):
                 continue
             prev_a = curr_to_prev.get(cid_a)
             prev_b = curr_to_prev.get(cid_b)
@@ -255,9 +248,9 @@ def detect_transform_rotation(
             continue
         covering = [
             other.bbox for oid, other in curr_blobs.items()
-            if oid != pid and other.is_present and _bbox_overlaps(cb.bbox, other.bbox)
+            if oid != pid and other.is_present and bbox_overlaps(cb.bbox, other.bbox)
         ]
-        result = _detect_rotation_or_transform(
+        result = detect_rotation_or_transform(
             arr_a, arr_b, pb.bbox, cb.bbox, pb.cell_count, cb.cell_count,
             debug_label=pb.name or pid,
             covering_bboxes=covering or None,

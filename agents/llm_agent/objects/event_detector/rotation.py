@@ -5,10 +5,16 @@ from __future__ import annotations
 import numpy as np
 
 from ..camera import _rotate_np
-from .matching import _crop
+from .matching import crop
 
 
-def _detect_rotation_or_transform(
+def _pad_square(c: np.ndarray, S: int) -> np.ndarray:
+    out = np.zeros((S, S), dtype=np.int16)
+    out[:c.shape[0], :c.shape[1]] = c
+    return out
+
+
+def detect_rotation_or_transform(
     arr_a: np.ndarray,
     arr_b: np.ndarray,
     bbox_a: dict,
@@ -34,8 +40,8 @@ def _detect_rotation_or_transform(
             print(f"  [rot_dbg] {debug_label}: cell_count skip ({cell_count_a}→{cell_count_b})")
         return None
 
-    crop_a = _crop(arr_a, bbox_a).astype(np.int16)
-    crop_b = _crop(arr_b, bbox_b).astype(np.int16)
+    crop_a = crop(arr_a, bbox_a).astype(np.int16)
+    crop_b = crop(arr_b, bbox_b).astype(np.int16)
 
     # Fast path: if raw crops are identical (same shape, same pixels) there is
     # nothing to detect — rotation/transform SSE cannot go below 0.
@@ -85,12 +91,8 @@ def _detect_rotation_or_transform(
 
     # Pad both to same square size so rotation search stays in frame
     S = max(crop_a.shape[0], crop_a.shape[1], crop_b.shape[0], crop_b.shape[1])
-    def _pad(c: np.ndarray) -> np.ndarray:
-        out = np.zeros((S, S), dtype=np.int16)
-        out[:c.shape[0], :c.shape[1]] = c
-        return out
-    pa = _pad(crop_a)
-    pb_pad = _pad(crop_b)
+    pa = _pad_square(crop_a, S)
+    pb_pad = _pad_square(crop_b, S)
 
     sse_zero = float(np.mean((pa - pb_pad) ** 2))
     if debug_label:
@@ -136,12 +138,11 @@ def _detect_rotation_or_transform(
             print(f"  [rot_dbg] {debug_label}: → TRANSFORM color_diff={color_diff:.3f}")
         return {"kind": "transform", "color_diff": round(color_diff, 3)}
 
-    # --- Pass 2: 5° step sweep (skip 90° multiples already checked) ---
-    SKIP = {90, 180, 270, -90, -180, -270}
+    # --- Pass 2: 5° step sweep (skip 90° and 180° already checked) ---
     for deg in range(5, 181, 5):
+        if deg % 90 == 0:
+            continue
         for signed_deg in (deg, -deg):
-            if signed_deg in SKIP:
-                continue
             rotated = _rotate_np(pa_u8, signed_deg).astype(np.int16)
             s = float(np.mean((rotated - pb_pad) ** 2))
             if s < best_sse:

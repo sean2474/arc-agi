@@ -1,5 +1,5 @@
-from .matching import match_blobs, _bbox_overlaps, _crop
-from .rotation import _detect_rotation_or_transform
+from .matching import match_blobs, bbox_overlaps, crop
+from .rotation import detect_rotation_or_transform
 from .frame_events import detect_frame_events, detect_transform_rotation
 from .merge import merge_events
 

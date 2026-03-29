@@ -11,7 +11,7 @@ def _manhattan(p1: tuple, p2: tuple) -> int:
     return abs(p1[0] - p2[0]) + abs(p1[1] - p2[1])
 
 
-def _bbox_overlaps(b1: dict, b2: dict) -> bool:
+def bbox_overlaps(b1: dict, b2: dict) -> bool:
     """True if two bboxes share at least one cell (strict overlap)."""
     return (
         b1["row_min"] <= b2["row_max"] and b2["row_min"] <= b1["row_max"]
@@ -19,7 +19,7 @@ def _bbox_overlaps(b1: dict, b2: dict) -> bool:
     )
 
 
-def _crop(arr: np.ndarray, bbox: dict) -> np.ndarray:
+def crop(arr: np.ndarray, bbox: dict) -> np.ndarray:
     return arr[bbox["row_min"]:bbox["row_max"] + 1,
                bbox["col_min"]:bbox["col_max"] + 1]
 

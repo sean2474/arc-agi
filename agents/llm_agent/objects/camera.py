@@ -18,20 +18,13 @@ _IMPROVE_THRESH = 0.85  # SSE must be < baseline * this to count as significant
 # Grid helpers
 # ---------------------------------------------------------------------------
 
-def _to_np(grid: list[str]) -> np.ndarray:
+def grid_to_numpy(grid: list[str]) -> np.ndarray:
     """Convert compact string grid to uint8 numpy array (H, W)."""
     return np.array([[int(c, 16) for c in row] for row in grid], dtype=np.uint8)
 
 
-def grid_to_numpy(grid: list[str]) -> np.ndarray:
-    """Public alias for _to_np."""
-    return _to_np(grid)
-
-
 def _diff_count(g1: list[str], g2: list[str]) -> int:
-    a1 = _to_np(g1)
-    a2 = _to_np(g2)
-    return int(np.sum(a1 != a2))
+    return int(np.sum(grid_to_numpy(g1) != grid_to_numpy(g2)))
 
 
 # ---------------------------------------------------------------------------
@@ -133,8 +126,8 @@ def detect_frame_shift(
     if _diff_count(grid_a, grid_b) < _DIFF_THRESHOLD:
         return (0, 0, 0.0)
 
-    arr_a = _to_np(grid_a)
-    arr_b = _to_np(grid_b)
+    arr_a = grid_to_numpy(grid_a)
+    arr_b = grid_to_numpy(grid_b)
 
     # --- Step 1: best translation ---
     t_dr, t_dc, t_sse = _best_translation(arr_a, arr_b, shift_range, shift_range)
