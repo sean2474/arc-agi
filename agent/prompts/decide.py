@@ -1,5 +1,5 @@
-from ..const import ACTION_NUM_TO_NAME
-from agents.llm_agent.fmt import fmt_objects_prompt, fmt_actions, fmt_relationships
+from agent.const import ACTION_NUM_TO_NAME
+from agent.fmt import fmt_objects_prompt, fmt_actions, fmt_relationships
 
 
 def _actions_as_names(available_actions: list[dict]) -> str:
