@@ -57,7 +57,7 @@ Respond in JSON:
   "static_objects": [],
   "renamed_objects": {{}},
   "relationship_updates": [
-    {{"subject_type": "name (shape, color)", "relation": "...", "object_type": "name (shape, color)", "context": "...", "interaction_result": "...", "confidence": 0.7}}
+    {{"subject_name": "...", "object_name": "...", "relation": "...", "context": "...", "interaction_result": "...", "confidence": 0.7}}
   ],
   "contradictions": []
 }}

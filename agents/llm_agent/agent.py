@@ -15,7 +15,7 @@ from .models import StepRecord
 from .world_model import WorldModel
 from .prompts import SYSTEM_PROMPT, parse_llm_response
 from .actions import action_to_gameaction
-from .steps import do_scan, do_hypothesize, do_observe, do_decide, do_analyze, do_incident, do_update
+from .steps import do_scan, do_hypothesize, do_observe, do_decide, do_incident, do_update
 from .objects import BlobManager
 
 
@@ -275,8 +275,32 @@ class LLMAgent:
                 )
 
             if is_level_complete:
+                # INCIDENT renamed_objects → blobs에 반영 (reset 전에 처리해야 다음 SCAN에 유지)
+                if incident_result and self._blob_manager:
+                    inc_renames = incident_result.get("renamed_objects", {})
+                    if inc_renames and isinstance(inc_renames, dict):
+                        for oid, info in inc_renames.items():
+                            if not isinstance(info, dict):
+                                continue
+                            blob = self._blob_manager.blobs.get(oid)
+                            if blob:
+                                if info.get("new_name"):
+                                    blob.name = info["new_name"]
+                                if info.get("type_hypothesis"):
+                                    blob.type_hypothesis = info["type_hypothesis"]
+                                print(f"  [INCIDENT-RENAME] {oid} → {info.get('new_name', blob.name)}")
                 self.world_model.reset_for_new_level()
                 self.pending_sequence = []
+
+            # current_subgoal이 비어 있으면 active/pending plan에서 채움
+            if not self.current_subgoal:
+                active = self.world_model.get_active_plan()
+                if active:
+                    self.current_subgoal = active
+                else:
+                    nxt = self.world_model.select_next_plan()
+                    if nxt:
+                        self.current_subgoal = nxt
 
             # OBSERVE
             print("  [OBSERVE]")
@@ -315,40 +339,26 @@ class LLMAgent:
 
             # relationship_updates
             for ru in observe_result.get("relationship_updates", []):
-                if isinstance(ru, dict) and ru.get("subject_type") and ru.get("object_type"):
+                if not isinstance(ru, dict):
+                    continue
+                subj = ru.get("subject_name") or ru.get("subject") or ru.get("subject_type")
+                obj_ = ru.get("object_name") or ru.get("object") or ru.get("object_type")
+                if subj and obj_:
                     self.world_model.add_relationship(
-                        ru["subject_type"], ru.get("relation", ""),
-                        ru["object_type"], ru.get("context", "any"),
+                        subj, ru.get("relation", ""),
+                        obj_, ru.get("context", "any"),
                         ru.get("interaction_result"), ru.get("confidence", 0.7),
                     )
 
-            # ACTION ANALYZER
-            print("  [ANALYZE]")
-            analyze_result = do_analyze(
-                self,
-                current_subgoal=self.current_subgoal,
-                planned_sequence=self.planned_sequence,
-                executed_action=action_label,
-                remaining_sequence=list(self.pending_sequence),
-                observe_result=observe_result,
-            )
-            status = analyze_result.get("status", "continue")
-            discoveries = analyze_result.get("discoveries", [])
-            print(f"  [ANALYZE] status={status}")
-
-            if status == "continue" and self.pending_sequence:
-                # 시퀀스 계속 — UPDATE/DECIDE 불필요
+            # 코드레벨 ANALYZE: pending_sequence 남아있으면 continue, 없으면 done
+            if self.pending_sequence:
                 need_replan = False
             else:
-                # success / abort / 시퀀스 완료
-                if status == "success" and self.current_subgoal:
+                need_replan = True
+                if self.current_subgoal:
                     self.world_model.mark_plan(self.current_subgoal.get("description", ""), "done")
-                elif status == "abort" and self.current_subgoal:
-                    self.world_model.mark_plan(self.current_subgoal.get("description", ""), "failed")
-                self.pending_sequence = []
-                # UPDATE
                 print("  [UPDATE]")
-                do_update(self, {"analyze_status": status, "discoveries": discoveries}, discoveries, incident_result)
+                do_update(self, {}, [], incident_result)
                 self.world_model.update_phase()
 
         # PLANNER + DECIDE

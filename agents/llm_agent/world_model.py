@@ -237,25 +237,48 @@ class WorldModel:
 
     # ── Relationships ──
 
+    def _resolve_to_id(self, name_or_id: str) -> str:
+        """name → obj_id 변환. 이미 obj_id거나 못 찾으면 as-is 반환."""
+        if name_or_id in self._data["objects"]:
+            return name_or_id
+        for oid, obj in self._data["objects"].items():
+            if isinstance(obj, dict) and obj.get("name") == name_or_id:
+                return oid
+        return name_or_id  # fallback: 이름 문자열 그대로
+
+    def _resolve_to_name(self, id_or_name: str) -> str:
+        """obj_id → 현재 name 변환. 못 찾으면 id_or_name 그대로 반환."""
+        obj = self._data["objects"].get(id_or_name)
+        if obj and isinstance(obj, dict) and obj.get("name"):
+            return obj["name"]
+        return id_or_name
+
     def get_relationships(self) -> list:
         return self._data["relationships"]
 
-    def add_relationship(self, subject_type: str, relation: str, object_type: str,
+    def add_relationship(self, subject: str, relation: str, object_: str,
                          context: str = "any", interaction_result=None, confidence: float = 0.3):
-        """새 relationship 추가. (subject_type, relation, object_type) 중복이면 update."""
+        """관계 추가. subject/object는 name 또는 obj_id — 내부적으로 obj_id로 저장."""
+        subject_id = self._resolve_to_id(subject)
+        object_id = self._resolve_to_id(object_)
         for r in self._data["relationships"]:
-            if (r.get("subject_type") == subject_type
-                    and r.get("relation") == relation
-                    and r.get("object_type") == object_type):
+            # 구 포맷(subject_type) 호환 포함
+            sid = r.get("subject_id") or r.get("subject_type", "")
+            oid = r.get("object_id") or r.get("object_type", "")
+            if sid == subject_id and r.get("relation") == relation and oid == object_id:
+                r["subject_id"] = subject_id
+                r["object_id"] = object_id
+                r.pop("subject_type", None)
+                r.pop("object_type", None)
                 r["context"] = context
                 r["confidence"] = confidence
                 if interaction_result is not None:
                     r["interaction_result"] = interaction_result
                 return
         self._data["relationships"].append({
-            "subject_type": subject_type,
+            "subject_id": subject_id,
+            "object_id": object_id,
             "relation": relation,
-            "object_type": object_type,
             "context": context,
             "interaction_result": interaction_result,
             "confidence": confidence,
@@ -343,10 +366,14 @@ class WorldModel:
 
         if "relationships" in updated_wm and isinstance(updated_wm["relationships"], list):
             for r in updated_wm["relationships"]:
-                if isinstance(r, dict) and "subject_type" in r and "object_type" in r:
+                if not isinstance(r, dict):
+                    continue
+                subj = r.get("subject_id") or r.get("subject") or r.get("subject_type")
+                obj_ = r.get("object_id") or r.get("object") or r.get("object_type")
+                if subj and obj_:
                     self.add_relationship(
-                        r["subject_type"], r.get("relation", ""),
-                        r["object_type"], r.get("context", "any"),
+                        subj, r.get("relation", ""),
+                        obj_, r.get("context", "any"),
                         r.get("interaction_result"), r.get("confidence", 0.3),
                     )
 
@@ -428,7 +455,7 @@ class WorldModel:
     _PROMPT_FIELDS = {"name", "shape", "colors", "position", "size", "type_hypothesis", "bbox"}
 
     def to_prompt_dict(self) -> dict:
-        """프롬프트용 직렬화. objects를 list로, 내부 필드(bbox/instance_id 등) 제거."""
+        """프롬프트용 직렬화. objects를 list로, relationships는 name으로 resolve."""
         d = copy.deepcopy(self._data)
         objects = d.get("objects", {})
         d["objects"] = [
@@ -436,4 +463,15 @@ class WorldModel:
             for obj in objects.values()
             if isinstance(obj, dict)
         ]
+        # relationships: subject_id/object_id → 현재 name으로 변환
+        resolved = []
+        for r in d.get("relationships", []):
+            sid = r.get("subject_id") or r.get("subject_type", "?")
+            oid = r.get("object_id") or r.get("object_type", "?")
+            rr = {k: v for k, v in r.items()
+                  if k not in ("subject_id", "object_id", "subject_type", "object_type")}
+            rr["subject"] = self._resolve_to_name(sid)
+            rr["object"] = self._resolve_to_name(oid)
+            resolved.append(rr)
+        d["relationships"] = resolved
         return d

@@ -287,13 +287,6 @@ class BlobManager:
                           if e["type"] in ("camera_shift", "camera_rotation")]
             frame_events.append(events)
 
-            # 카메라 이동이 막 시작된 프레임: 직전 프레임의 cause=unknown disappear 소급 제거.
-            # 캐릭터가 카메라 스크롤 직전에 화면 끝으로 이동해서 임시로 사라지는 오탐 방지.
-            if is_camera_moving and len(frame_events) >= 2:
-                frame_events[-2] = [
-                    ev for ev in frame_events[-2]
-                    if not (ev["type"] == "disappear" and ev.get("cause") == "unknown")
-                ]
 
             pairs, unmatched_prev, unmatched_curr = match_blobs(corrected, curr_raw)
 
@@ -431,6 +424,20 @@ class BlobManager:
 
             if self._color_merge_groups:
                 current_blobs = apply_color_merge_groups(current_blobs, self._color_merge_groups)
+
+        # Post-loop: first camera frame 이전의 ALL unknown-cause disappear 소급 제거.
+        # frame_events[-2]만 보는 방식은 gap이 2+ 프레임이면 miss함.
+        first_camera_idx = next(
+            (j for j, fev in enumerate(frame_events)
+             if any(e["type"] in ("camera_shift", "camera_rotation") for e in fev)),
+            None,
+        )
+        if first_camera_idx is not None:
+            for j in range(first_camera_idx):
+                frame_events[j] = [
+                    ev for ev in frame_events[j]
+                    if not (ev["type"] == "disappear" and ev.get("cause") == "unknown")
+                ]
 
         np_final = grid_to_numpy(anim_frames[-1])
         result_events = detect_transform_rotation(
