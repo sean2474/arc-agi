@@ -128,7 +128,7 @@ def start_replay_server(live_json_path: Path, port: int = 5556):
     """replay 서버를 백그라운드 스레드로 시작."""
     import threading
     from flask import Flask, jsonify, render_template_string
-    from agents.llm_agent.const import ARC_COLORS
+    from agent.const import ARC_COLORS
 
     app = Flask(__name__)
     app.config["live_path"] = str(live_json_path)
