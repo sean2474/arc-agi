@@ -17,8 +17,8 @@
 
 | 역할 | 모델 | 용도 |
 |------|------|------|
-| VLM | Qwen2.5-VL-7B | SCAN(이름/역할만), HYPOTHESIZE, DECIDE, REDEFINE(이벤트 시), ANALYZE, UPDATE |
-| 코드 | Python | blob 추출, diff 계산, 이벤트 감지, 카메라 추적, PLANNER |
+| VLM | Qwen2.5-VL-7B | SCAN(이름/역할만), HYPOTHESIZE, OBSERVE, DECIDE, UPDATE, INCIDENT |
+| 코드 | Python | blob 추출, diff 계산, 이벤트 감지, 카메라 추적, PLANNER, ANALYZE, 자동 재분류 |
 
 단일 VLM 구조. SCAN/DECIDE/REDEFINE은 이미지+텍스트, 나머지는 텍스트만. 32GB VRAM 제약.
 **코드가 위치/크기/색상 100% 정확하게 계산 → VLM은 의미론적 해석만 담당.**
@@ -35,14 +35,13 @@ Phase 2~4 (시퀀스 실행 중이 아닐 때):
   → [코드] blob diff + 이벤트 감지
       ├─ split/merge/appear → REDEFINE(VLM: 영향 blob만)
       └─ disappear         → is_present=false (코드)
-  → ANALYZE(VLM: 코드 diff 수신) → UPDATE(VLM)
+  → ANALYZE(코드: pending_sequence 기반) → UPDATE(VLM)
 
 Phase 2~4 (시퀀스 실행 중일 때):
-  EXECUTE → [코드] diff+이벤트 → REDEFINE(조건부)
-  → ANALYZE(VLM)
-  ├─ continue: 다음 action 실행
-  ├─ abort:   UPDATE(VLM) → PLANNER → DECIDE (re-plan)
-  └─ success: UPDATE(VLM) → PLANNER (다음 plan)
+  EXECUTE → [코드] diff+이벤트 → 자동 재분류
+  → ANALYZE(코드)
+  ├─ pending_sequence 있음: 다음 action 실행
+  └─ pending_sequence 없음: mark_plan(done) → UPDATE(VLM) → PLANNER → DECIDE
 ```
 
 ### 호출 순서
@@ -58,7 +57,8 @@ Phase 2~4 (시퀀스 실행 중일 때):
 | **Phase 2** | 3 | EXECUTE | 코드 | pending_sequence에서 action 1개 pop 후 env.step(). |
 | **Phase 2~4** | 4 | diff+이벤트 | 코드 | 각 애니메이션 프레임 쌍마다: (1) 카메라 shift 감지(SSE) → (2) blob bbox 보정 → (3) 오브젝트 이동 delta 계산. 이벤트 merge 후 ANALYZE에 전달. |
 | **Phase 2** | 5 | REDEFINE | VLM+이미지 | split/merge/appear 시만. 영향 blob의 name/type_hypothesis 재부여. |
-| **Phase 2** | 6 | ANALYZE | 코드 | plan.target_object + blob diff → continue/abort/success 판정. VLM 호출 없음. |
+| **Phase 2** | 5.5 | 자동 재분류 | 코드 | move 이벤트 발생한 blob 중 type=unknown/obstacle → controllable 자동 재분류. |
+| **Phase 2** | 6 | ANALYZE | 코드 | `pending_sequence` 남아있으면 continue(next action), 비었으면 done → mark_plan + UPDATE. VLM 호출 없음. |
 | **Phase 2** | 7 | UPDATE | VLM | abort/success 시만. world_model + plans 갱신. |
 
 ## PLANNER
@@ -75,23 +75,16 @@ click: `["click", "obj_name"]` 형식. `"click"` 단독 문자열 금지.
 
 ## ANALYZE (코드, VLM 호출 없음)
 
-DECIDE의 `desired_event` + 실제 blob diff 비교 → `continue / abort / success` 판정.
+`pending_sequence` 기반 단순 판정. LLM 없음.
 
-**desired_event 있는 plan**:
-- desired_event 타입이 실제 diff와 일치 → `continue`
-- 불일치 또는 변화 없음 → `abort` (액션 효과 없음)
-- desired obj 외 예상 밖 blob 변화 → `abort` (환경 변화)
-- `disappear` 이벤트 + `is_present=false` → `success`
-- game_over → `abort` + INCIDENT
-- level_complete → `success` + INCIDENT
-
-**desired_event 없는 plan (탐색형)**:
-- 단일 action만 허용 (sequence 1개)
-- 실행 후 무조건 UPDATE 트리거
+| 조건 | 결과 |
+|------|------|
+| `pending_sequence` 항목 남아있음 | continue — 다음 action 실행 |
+| `pending_sequence` 비어있음 | done — `mark_plan(done)` → UPDATE → PLANNER → DECIDE |
 
 ## UPDATE
 
-ANALYZE discoveries + (INCIDENT) 결과로 world_model 갱신. abort/success 시만 호출.
+시퀀스 완료(done) 시 호출. INCIDENT 결과도 함께 전달.
 `plans` 갱신: abort → plan 수정 또는 새 plan 추가. success → done 마킹.
 
 ## INCIDENT
