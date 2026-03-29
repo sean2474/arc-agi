@@ -271,134 +271,133 @@ class BlobManager:
             np_a = grid_to_numpy(grid_a)
             np_b = grid_to_numpy(grid_b)
             is_last = (i == len(anim_frames) - 1)
+            is_camera_moving = (dr != 0 or dc != 0 or _angle != 0.0)
+
             events, prev_collide_pairs, newly_covered = detect_frame_events(
                 corrected, curr_raw, camera_shift,
                 frame_idx=i, prev_collide_pairs=prev_collide_pairs,
                 arr_a=np_a, arr_b=np_b,
-                emit_appear=is_last,
-                emit_disappear=is_last,
+                emit_appear=is_last and not is_camera_moving,
+                emit_disappear=not is_camera_moving,
             )
+
+            # Camera 이동 중: 카메라 이벤트만 유지, 오브젝트 이벤트 전부 억제
+            if is_camera_moving:
+                events = [e for e in events
+                          if e["type"] in ("camera_shift", "camera_rotation")]
             frame_events.append(events)
 
             pairs, unmatched_prev, unmatched_curr = match_blobs(corrected, curr_raw)
 
-            # Co-movement merge detection
-            first_movers: dict[frozenset, list] = {}
-            sig_to_pid: dict[frozenset, str] = {}
-            # Count blobs sharing the same (color sig, cell_count) — identical shape+color.
-            # If a twin exists, match_blobs may pair the wrong blob → false merge delta.
-            ShapeKey = tuple  # (frozenset[str], int)
-            prev_shape_count: dict[ShapeKey, int] = {}
-            for pb in corrected.values():
-                if pb.is_present:
+            # Co-movement merge detection — camera 이동 중에는 스킵 (false merge 방지)
+            if not is_camera_moving:
+                first_movers: dict[frozenset, list] = {}
+                sig_to_pid: dict[frozenset, str] = {}
+                ShapeKey = tuple  # (frozenset[str], int)
+                prev_shape_count: dict[ShapeKey, int] = {}
+                for pb in corrected.values():
+                    if pb.is_present:
+                        sig = frozenset(pb.colors)
+                        sig_to_pid[sig] = pb.instance_id
+                        key = (sig, pb.cell_count)
+                        prev_shape_count[key] = prev_shape_count.get(key, 0) + 1
+                curr_shape_count: dict[ShapeKey, int] = {}
+                for cb in curr_raw.values():
+                    key = (frozenset(cb.colors), cb.cell_count)
+                    curr_shape_count[key] = curr_shape_count.get(key, 0) + 1
+                for pid, cid in pairs:
+                    pb, cb = corrected[pid], curr_raw[cid]
                     sig = frozenset(pb.colors)
-                    sig_to_pid[sig] = pb.instance_id
-                    key = (sig, pb.cell_count)
-                    prev_shape_count[key] = prev_shape_count.get(key, 0) + 1
-            curr_shape_count: dict[ShapeKey, int] = {}
-            for cb in curr_raw.values():
-                key = (frozenset(cb.colors), cb.cell_count)
-                curr_shape_count[key] = curr_shape_count.get(key, 0) + 1
-            for pid, cid in pairs:
-                pb, cb = corrected[pid], curr_raw[cid]
-                sig = frozenset(pb.colors)
-                if sig in self._ever_moved_sigs:
-                    continue
-                # Skip if an identical twin (same color + same cell_count) exists in
-                # either frame: greedy match may pair the wrong blob → false merge.
-                if (prev_shape_count.get((sig, pb.cell_count), 0) > 1
-                        or curr_shape_count.get((frozenset(cb.colors), cb.cell_count), 0) > 1):
-                    continue
-                dr_m = cb.center()[0] - pb.center()[0]
-                dc_m = cb.center()[1] - pb.center()[1]
-                if abs(dr_m) > 1 or abs(dc_m) > 1:
-                    # Skip fixed-screen (HUD) elements: they move exactly opposite to
-                    # the camera correction (-dr, -dc) because they don't scroll with
-                    # the world.  Two HUD elements with the same anti-camera delta
-                    # would otherwise falsely trigger a merge.
-                    if dr_m == -dr and dc_m == -dc:
+                    if sig in self._ever_moved_sigs:
                         continue
-                    first_movers[sig] = [dr_m, dc_m]
-            sigs = list(first_movers.keys())
-            new_merge_events: list[dict] = []
-            for si, sig_a in enumerate(sigs):
-                for sig_b in sigs[si + 1:]:
-                    if first_movers[sig_a] == first_movers[sig_b]:
-                        merged_group = sig_a | sig_b
-                        if merged_group not in self._color_merge_groups:
-                            self._color_merge_groups.append(merged_group)
-                            pid_a = sig_to_pid.get(sig_a)
-                            pid_b = sig_to_pid.get(sig_b)
-                            name_a = (corrected[pid_a].name or pid_a) if pid_a else str(sig_a)
-                            name_b = (corrected[pid_b].name or pid_b) if pid_b else str(sig_b)
-                            new_merge_events.append({
-                                "type": "merge",
-                                "obj_a": name_a,
-                                "obj_b": name_b,
-                                "frame": i,
-                            })
-            if new_merge_events:
-                merged_name_pairs = {
-                    frozenset([me["obj_a"], me["obj_b"]]) for me in new_merge_events
-                }
-                frame_events[-1] = [
-                    e for e in frame_events[-1]
-                    if not (e["type"] == "collide"
-                            and frozenset([e["obj_a"], e["obj_b"]]) in merged_name_pairs)
-                ]
-                merged_pid_pairs = {
-                    frozenset([sig_to_pid[sig_a], sig_to_pid[sig_b]])
-                    for si2, sig_a in enumerate(sigs)
-                    for sig_b in sigs[si2 + 1:]
-                    if (first_movers[sig_a] == first_movers[sig_b]
-                        and sig_to_pid.get(sig_a) and sig_to_pid.get(sig_b))
-                }
-                prev_collide_pairs -= merged_pid_pairs
-                cur_events = frame_events[-1]
-                insert_at = next(
-                    (j for j, e in enumerate(cur_events) if e["type"] == "collide"),
-                    len(cur_events),
-                )
-                for k, me in enumerate(new_merge_events):
-                    cur_events.insert(insert_at + k, me)
-            for sig in first_movers:
-                self._ever_moved_sigs.add(sig)
+                    if (prev_shape_count.get((sig, pb.cell_count), 0) > 1
+                            or curr_shape_count.get((frozenset(cb.colors), cb.cell_count), 0) > 1):
+                        continue
+                    dr_m = cb.center()[0] - pb.center()[0]
+                    dc_m = cb.center()[1] - pb.center()[1]
+                    if abs(dr_m) > 1 or abs(dc_m) > 1:
+                        if dr_m == -dr and dc_m == -dc:
+                            continue
+                        first_movers[sig] = [dr_m, dc_m]
+                sigs = list(first_movers.keys())
+                new_merge_events: list[dict] = []
+                for si, sig_a in enumerate(sigs):
+                    for sig_b in sigs[si + 1:]:
+                        if first_movers[sig_a] == first_movers[sig_b]:
+                            merged_group = sig_a | sig_b
+                            if merged_group not in self._color_merge_groups:
+                                self._color_merge_groups.append(merged_group)
+                                pid_a = sig_to_pid.get(sig_a)
+                                pid_b = sig_to_pid.get(sig_b)
+                                name_a = (corrected[pid_a].name or pid_a) if pid_a else str(sig_a)
+                                name_b = (corrected[pid_b].name or pid_b) if pid_b else str(sig_b)
+                                new_merge_events.append({
+                                    "type": "merge",
+                                    "obj_a": name_a,
+                                    "obj_b": name_b,
+                                    "frame": i,
+                                })
+                if new_merge_events:
+                    merged_name_pairs = {
+                        frozenset([me["obj_a"], me["obj_b"]]) for me in new_merge_events
+                    }
+                    frame_events[-1] = [
+                        e for e in frame_events[-1]
+                        if not (e["type"] == "collide"
+                                and frozenset([e["obj_a"], e["obj_b"]]) in merged_name_pairs)
+                    ]
+                    merged_pid_pairs = {
+                        frozenset([sig_to_pid[sig_a], sig_to_pid[sig_b]])
+                        for si2, sig_a in enumerate(sigs)
+                        for sig_b in sigs[si2 + 1:]
+                        if (first_movers[sig_a] == first_movers[sig_b]
+                            and sig_to_pid.get(sig_a) and sig_to_pid.get(sig_b))
+                    }
+                    prev_collide_pairs -= merged_pid_pairs
+                    cur_events = frame_events[-1]
+                    insert_at = next(
+                        (j for j, e in enumerate(cur_events) if e["type"] == "collide"),
+                        len(cur_events),
+                    )
+                    for k, me in enumerate(new_merge_events):
+                        cur_events.insert(insert_at + k, me)
+                for sig in first_movers:
+                    self._ever_moved_sigs.add(sig)
 
             current_blobs, self._next_id = _remap_blobs(
                 corrected, curr_raw, pairs, unmatched_prev, unmatched_curr,
                 current_blobs, self._next_id, self._archive,
             )
 
-            # Deferred disappear: update covered_by and emit disappear when uncovered
-            for covered_pid, covering_pid in newly_covered.items():
-                self._covered_by[covered_pid] = covering_pid
-            for covered_pid in list(self._covered_by.keys()):
-                cb_blob = current_blobs.get(covered_pid)
-                if cb_blob is None or cb_blob.is_present:
-                    # Reappeared or assigned new ID: stop tracking
-                    del self._covered_by[covered_pid]
-                    continue
-                covering_pid = self._covered_by[covered_pid]
-                cov_blob = current_blobs.get(covering_pid)
-                ref = cb_blob.last_seen_bbox or cb_blob.bbox
-                ref_r = (ref["row_min"] + ref["row_max"]) // 2
-                ref_c = (ref["col_min"] + ref["col_max"]) // 2
-                still_covered = (
-                    cov_blob is not None
-                    and cov_blob.is_present
-                    and cov_blob.bbox["row_min"] <= ref_r <= cov_blob.bbox["row_max"]
-                    and cov_blob.bbox["col_min"] <= ref_c <= cov_blob.bbox["col_max"]
-                )
-                if not still_covered and is_last:
-                    # Covering blob moved away; covered blob didn't reappear → destroyed
-                    frame_events[-1].append({
-                        "type": "disappear",
-                        "obj": cb_blob.instance_id,
-                        "last_pos": [ref_r, ref_c],
-                        "cause": "collide_destroy",
-                        "frame": i,
-                    })
-                    del self._covered_by[covered_pid]
+            # Deferred disappear — camera 이동 중에는 covered_by 갱신/emit 스킵
+            if not is_camera_moving:
+                for covered_pid, covering_pid in newly_covered.items():
+                    self._covered_by[covered_pid] = covering_pid
+                for covered_pid in list(self._covered_by.keys()):
+                    cb_blob = current_blobs.get(covered_pid)
+                    if cb_blob is None or cb_blob.is_present:
+                        del self._covered_by[covered_pid]
+                        continue
+                    covering_pid = self._covered_by[covered_pid]
+                    cov_blob = current_blobs.get(covering_pid)
+                    ref = cb_blob.last_seen_bbox or cb_blob.bbox
+                    ref_r = (ref["row_min"] + ref["row_max"]) // 2
+                    ref_c = (ref["col_min"] + ref["col_max"]) // 2
+                    still_covered = (
+                        cov_blob is not None
+                        and cov_blob.is_present
+                        and cov_blob.bbox["row_min"] <= ref_r <= cov_blob.bbox["row_max"]
+                        and cov_blob.bbox["col_min"] <= ref_c <= cov_blob.bbox["col_max"]
+                    )
+                    if not still_covered and is_last:
+                        frame_events[-1].append({
+                            "type": "disappear",
+                            "obj": cb_blob.instance_id,
+                            "last_pos": [ref_r, ref_c],
+                            "cause": "collide_destroy",
+                            "frame": i,
+                        })
+                        del self._covered_by[covered_pid]
 
             # Remove blobs absorbed into a CO-MOVEMENT merge group only.
             # Do NOT delete absent blobs whose colors appear as subset due to collision coverage.

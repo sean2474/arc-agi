@@ -280,16 +280,22 @@ class LLMAgent:
                 if objs and isinstance(objs, dict):
                     self.world_model.merge_objects(objs)
 
-            # renamed_objects
+            # renamed_objects — name과 type_hypothesis 동시 반영
             renames = observe_result.get("renamed_objects", {})
             if renames and isinstance(renames, dict):
                 self.world_model.apply_renames(renames)
+                for obj_id, info in renames.items():
+                    if not isinstance(info, dict):
+                        continue
+                    new_name = info.get("new_name") or info.get("name")
+                    new_type = info.get("type_hypothesis")
+                    if new_type:
+                        self.world_model.update_object(obj_id, type_hypothesis=new_type)
+                    if new_name:
+                        print(f"  [RENAME] {obj_id} → {new_name}"
+                              + (f" ({new_type})" if new_type else ""))
                 if self._blob_manager:
                     self.world_model.push_names_to_blobs(self._blob_manager.blobs)
-                for obj_id, info in renames.items():
-                    new_name = info.get("new_name") or info.get("name") if isinstance(info, dict) else None
-                    if new_name:
-                        print(f"  [RENAME] {obj_id} → {new_name}")
 
             # relationship_updates
             for ru in observe_result.get("relationship_updates", []):

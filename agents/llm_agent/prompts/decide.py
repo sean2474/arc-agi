@@ -6,6 +6,13 @@ def _actions_as_names(available_actions: list[dict]) -> str:
     return ", ".join(ACTION_NUM_TO_NAME.get(a["value"], "?") for a in available_actions)
 
 
+def _has_click(available_actions: list[dict]) -> bool:
+    return any(
+        a.get("type") == "complex" or ACTION_NUM_TO_NAME.get(a.get("value")) == "click"
+        for a in available_actions
+    )
+
+
 def build_decide_message(
     current_subgoal: dict,
     observe_result: dict,
@@ -14,6 +21,16 @@ def build_decide_message(
     summary: dict,
 ) -> str:
     actions_names = _actions_as_names(available_actions)
+    has_click = _has_click(available_actions)
+
+    seq_example = '["right", "down", ["click", "obj_name"]]' if has_click else '["right", "down", "up"]'
+    click_rule = (
+        '  - Click action: a 2-element array — ["click", "name_of_object"] where name matches an object\'s "name" field above.\n'
+        '  - NEVER write "click" as a plain string. It is ALWAYS ["click", "obj_name"].'
+    ) if has_click else (
+        '  - Do NOT use click — it is not available in this game.'
+    )
+
     return f"""\
 CURRENT SUBGOAL
 {json.dumps(current_subgoal, indent=2, ensure_ascii=False)}
@@ -36,15 +53,14 @@ Use the image and object positions/bboxes to reason about the path.
 Respond in JSON:
 {{
   "reasoning": "describe object positions, obstacles, and how you plan to reach the subgoal",
-  "action_sequence": ["right", "down", ["click", "obj_name"]],
+  "action_sequence": {seq_example},
   "subgoal": "..."
 }}
 
 Rules:
 - action_sequence: 1-6 items. Available: [{actions_names}].
   - Normal actions: plain string — "up", "down", "left", "right", "interact", "undo"
-  - Click action: a 2-element array — ["click", "name_of_object"] where name matches an object's "name" field above.
-  - NEVER write "click" as a plain string. It is ALWAYS ["click", "obj_name"].
+{click_rule}
 - reasoning: MUST include current positions of key objects and why you chose this path.
 - Do NOT include game goals or win conditions — only focus on achieving the current subgoal.
 """

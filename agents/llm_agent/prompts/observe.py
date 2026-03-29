@@ -36,9 +36,12 @@ STEP 1 - VERIFY: Do the images confirm the events above?
 
 STEP 2 - MISSING: Any changes visible in images NOT captured in events?
 
-STEP 3 - CLASSIFY: Based on the changes:
-  - Which objects moved? -> type: "dynamic"
-  - Which objects stayed? -> type: "static"
+STEP 3 - RECLASSIFY: Based on movement, update type_hypothesis for any object whose classification is now wrong.
+  KEY RULE: An object that MOVED cannot be an "obstacle" or "static platform".
+  - Object moved directly in response to the action → "controllable" (note: some games have no player; the action may instead move the environment, a cursor, or multiple objects)
+  - Object moved but not action-controlled → "dynamic"
+  - Object stayed completely still → "static" or "obstacle" or "platform"
+  List all reclassifications in renamed_objects (include new type_hypothesis even if name stays same).
 
 STEP 4 - NAME REVIEW: For each object, is the current "name" still appropriate?
   If a name should change (e.g. you now know "unknown_1" is actually the "exit"), list it in renamed_objects.
@@ -59,11 +62,14 @@ Respond in JSON:
   "contradictions": []
 }}
 
-renamed_objects format: {{"obj_001": {{"new_name": "exit", "reason": "..."}}}}
+renamed_objects format: {{"obj_001": {{"new_name": "", "type_hypothesis": "", "reason": "moved in response to action"}}}}
+  - Include "type_hypothesis" whenever the classification changes (even if name stays same).
+  - ALWAYS reclassify any object labeled "obstacle" or "unknown" that moved this step.
 relationship_updates: only fill if a passive event was observed (object disappeared, game_over triggered near object, etc.).
 
 Rules:
 - Do NOT re-analyze all objects. Focus on CHANGES only.
 - Do NOT suggest actions. Observe ONLY.
 - Be specific about positions.
+- CRITICAL: If an object moved and is currently labeled "obstacle", it MUST be reclassified. Add it to renamed_objects.
 - Changes in objects at the extreme corners or edges of the screen are HUD updates (step counter, score) — NOT meaningful game events. Do NOT interpret these as success signals."""
