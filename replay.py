@@ -112,7 +112,14 @@ let currentIdx = 0;
 let playing = false;
 let playInterval = null;
 
-function drawGrid(grid, worldModel) {
+function parseClickCoords(action) {
+  if (!action || !action.startsWith('click')) return null;
+  const m = action.match(/click\([^@)]*@?(\d+),(\d+)\)/);
+  if (m) return { x: parseInt(m[1]), y: parseInt(m[2]) };
+  return null;
+}
+
+function drawGrid(grid, worldModel, action) {
   for (let y = 0; y < 64; y++) {
     const row = grid[y];
     for (let x = 0; x < 64; x++) {
@@ -147,6 +154,19 @@ function drawGrid(grid, worldModel) {
       ctx.fillText(label, x + 2, y - 2);
     }
   }
+  // draw click indicator
+  const click = parseClickCoords(action);
+  if (click) {
+    const cx = click.x * CELL + CELL / 2;
+    const cy = click.y * CELL + CELL / 2;
+    ctx.save();
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
 }
 
 function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
@@ -155,7 +175,7 @@ function showStep(idx) {
   if (idx < 0 || idx >= trajectory.length) return;
   currentIdx = idx;
   const s = trajectory[idx];
-  drawGrid(s.grid, s.world_model);
+  drawGrid(s.grid, s.world_model, s.action);
 
   document.getElementById('step-display').textContent = `${s.step} / ${trajectory.length}`;
   document.getElementById('slider').value = idx;
