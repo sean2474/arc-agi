@@ -318,6 +318,23 @@ class LLMAgent:
                     if nxt:
                         self.current_subgoal = nxt
 
+            # Respawn/teleport detection: same obj both disappeared and appeared
+            # (life lost, position reset, etc.) → abort pending sequence
+            # Exception: interact action can legitimately teleport objects
+            last_was_interact = (
+                self.last_action == "interact"
+                or (isinstance(self.last_action, list) and self.last_action[0] == "interact")
+            )
+            if self.pending_sequence and not last_was_interact:
+                disappeared = {ev["obj"] for ev in self._last_anim_events if ev.get("type") == "disappear"}
+                appeared   = {ev["obj"] for ev in self._last_anim_events if ev.get("type") == "appear"}
+                if disappeared & appeared:
+                    print(f"  [RESPAWN] detected {disappeared & appeared} — aborting sequence")
+                    self.pending_sequence = []
+                    self._accumulated_anim_events = []
+                    self._accumulated_result_events = []
+                    self._sequence_start_grid = None
+
             if self.pending_sequence:
                 # 시퀀스 중간: OBSERVE 스킵, 이벤트 누적
                 self._accumulated_anim_events.extend(self._last_anim_events)
