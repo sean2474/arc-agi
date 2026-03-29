@@ -450,7 +450,7 @@ class WorldModel:
     def to_dict(self) -> dict:
         return copy.deepcopy(self._data)
 
-    _PROMPT_FIELDS = {"instance_id", "name", "shape", "colors", "position", "size", "type_hypothesis"}
+    _PROMPT_FIELDS = {"instance_id", "name", "shape", "colors", "position", "size", "type_hypothesis", "confidence"}
 
     def to_prompt_dict(self) -> dict:
         """프롬프트용 직렬화. objects를 list로, relationships는 name으로 resolve."""

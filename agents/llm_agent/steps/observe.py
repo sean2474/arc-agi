@@ -22,8 +22,9 @@ def do_observe(
     blobs: dict | None = None,
     animation_events: list[dict] | None = None,
     result_events: list[dict] | None = None,
+    prev_objects: dict | None = None,
 ) -> dict:
-    wm_objects = agent.world_model.get_objects()
+    wm_objects = prev_objects if prev_objects is not None else agent.world_model.get_objects()
     if blobs:
         ann = blobs_to_annotation_dict(blobs)
         before_img = grid_to_image_base64_annotated(prev_grid, wm_objects, label_mode="name") if wm_objects else grid_to_image_base64(prev_grid)

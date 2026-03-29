@@ -5,6 +5,7 @@ Phase 2+: [OBSERVE → ACTION ANALYZER] → PLANNER → DECIDE(이미지) → EX
 └─ mid-sequence: [OBSERVE → ACTION ANALYZER] → continue|abort|success
 """
 
+import copy
 import time
 import functools
 
@@ -273,6 +274,7 @@ class LLMAgent:
                         blob.type_hypothesis = "controllable"
                         print(f"  [AUTO-RECLASSIFY] {oid}({blob.name or oid}): {old} → controllable")
 
+                _prev_wm_objects = copy.deepcopy(self.world_model.get_objects())
                 self.world_model.sync_from_blobs(self._blob_manager.blobs)
 
             # INCIDENT
@@ -338,6 +340,7 @@ class LLMAgent:
                     blobs=self._blob_manager.blobs if self._blob_manager else None,
                     animation_events=all_anim_events if self._blob_manager else None,
                     result_events=all_result_events if self._blob_manager else None,
+                    prev_objects=_prev_wm_objects if self._blob_manager else None,
                 )
 
                 # objects merge

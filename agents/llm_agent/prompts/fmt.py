@@ -22,7 +22,9 @@ def fmt_objects_prompt(objects) -> str:
         if not isinstance(obj, dict):
             continue
         name = obj.get("name", oid)
-        parts = [f"{oid}({name})"]
+        conf = obj.get("confidence")
+        name_str = f"{name}/confidence {conf:.1f}" if isinstance(conf, (int, float)) else name
+        parts = [f"{oid}({name_str})"]
         if obj.get("type_hypothesis"):
             parts.append(f"type={obj['type_hypothesis']}")
         if obj.get("position"):

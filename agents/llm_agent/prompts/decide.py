@@ -31,7 +31,7 @@ def build_decide_message(
         '    Prefer obj_id over name to avoid ambiguity when multiple objects share the same name.\n'
         '  - NEVER write "click" as a plain string. It is ALWAYS ["click", "obj_id"].'
     ) if has_click else (
-        '  - Do NOT use click — it is not available in this game.'
+        ''
     )
 
     subgoal_text = current_subgoal.get("description", "(none)")
@@ -77,8 +77,7 @@ Respond in JSON:
 
 Rules:
 - action_sequence: 1-6 items. Available: [{actions_names}].
-  - Normal actions: plain string — "up", "down", "left", "right", "interact", "undo"
 {click_rule}
 - reasoning: MUST include current positions of key objects and why you chose this path.
-- Do NOT include game goals or win conditions — only focus on achieving the current subgoal.
+- goal: Focus on achieving goal.
 """

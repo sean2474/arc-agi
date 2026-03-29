@@ -41,9 +41,6 @@ STEP 2 - MISSING: Any changes visible in images NOT already captured in the even
 
 STEP 3 - RECLASSIFY: For every object that MOVED (per events), update its type_hypothesis.
   KEY RULE: An object that MOVED cannot be an "obstacle" or "static platform".
-  - Moved in direct response to the action → "controllable"
-  - Moved but not action-controlled → "dynamic"
-  - Did not move at all → keep as "static", "obstacle", or "platform"
   List all reclassifications in renamed_objects (include new type_hypothesis even if name stays same).
 
 STEP 4 - NAME REVIEW: For each object that moved or changed, is its current "name" still appropriate?
