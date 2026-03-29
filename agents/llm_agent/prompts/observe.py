@@ -72,6 +72,8 @@ Rules:
 - Do NOT re-analyze all objects. Focus on CHANGES only.
 - Do NOT suggest actions. Observe ONLY.
 - Be specific about positions.
+- CRITICAL: Do NOT infer effects from the action taken. Only report what you DIRECTLY SEE changed in events or images.
+- CRITICAL: If events are "(none)" and images look identical → set changes="no changes observed", leave all other fields empty.
 - CRITICAL: If an object moved and is currently labeled "obstacle", it MUST be reclassified. Add it to renamed_objects.
 - CRITICAL: obj_id from EVENTS maps directly to instance_id in WORLD MODEL objects. Use this mapping.
 - Changes in objects at the extreme corners or edges of the screen are HUD updates (step counter, score) — NOT meaningful game events. Do NOT interpret these as success signals."""
