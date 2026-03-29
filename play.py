@@ -21,10 +21,10 @@ import argparse
 from datetime import datetime
 
 import arc_agi
-from agents.llm_agent.const import ARC_COLORS
+from agent.const import ARC_COLORS
 from arcengine import GameAction
 from flask import Flask, jsonify, request, render_template_string
-from agents.llm_agent.objects.manager import BlobManager, frame_to_compact
+from agent.objects.manager import BlobManager, frame_to_compact
 
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html>

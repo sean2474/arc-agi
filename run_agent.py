@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 import arc_agi
 from arcengine import GameAction, GameState
 
-from agents.llm_agent import LLMAgent, StepRecord
+from agent import LLMAgent, StepRecord
 
 
 load_dotenv()

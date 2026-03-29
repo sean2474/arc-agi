@@ -11,7 +11,7 @@ import argparse
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template_string
-from agents.llm_agent.const import ARC_COLORS
+from agent.const import ARC_COLORS
 
 
 HTML = """<!DOCTYPE html>
