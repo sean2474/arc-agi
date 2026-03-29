@@ -25,11 +25,11 @@ def build_decide_message(
     has_click = _has_click(available_actions)
 
     seq_example = '["right", "down", ["click", "obj_001"]]' if has_click else '["right", "down", "up"]'
-    
+
     click_rule = (
-        '  - Click action: a 2-element array — ["click", "obj_id"] using the key from KNOWN OBJECTS (e.g. "obj_001").\n'
-        '    Prefer obj_id over name to avoid ambiguity when multiple objects share the same name.\n'
-        '  - NEVER write "click" as a plain string. It is ALWAYS ["click", "obj_id"].'
+        '  - Click action: ALWAYS ["click", "obj_id"] — use the obj_id key from KNOWN OBJECTS (e.g. "obj_003").\n'
+        '    When exploring with no clear target, pick any obj_id to test.\n'
+        '  - NEVER write "click" as a plain string.'
     ) if has_click else (
         ''
     )
