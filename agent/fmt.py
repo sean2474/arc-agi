@@ -1,7 +1,7 @@
 """LLM 프롬프트용 텍스트 포맷 헬퍼."""
 
-from ..const import ARC_COLOR_NAMES
-from ..objects.event_detector.merge import merge_remap
+from agent.const import ARC_COLOR_NAMES
+from agent.objects.event_detector.merge import merge_remap
 
 
 def fmt_colors(colors: list) -> str:

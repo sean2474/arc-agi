@@ -3,14 +3,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..agent import LLMAgent
+    from agent import LLMAgent
 
-from ..grid_utils import (
+from agent.grid_utils import (
     grid_to_image_base64, grid_to_image_base64_annotated,
     blobs_to_annotation_dict, summarize_diff,
 )
-from ..prompts.fmt import format_events_for_prompt
-from ..prompts import build_observe_message
+from agent.fmt import format_events_for_prompt
+from agent.prompts import build_observe_message
 
 
 def do_observe(

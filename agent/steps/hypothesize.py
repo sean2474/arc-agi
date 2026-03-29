@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..agent import LLMAgent
+    from agent import LLMAgent
 
-from ..prompts import build_hypothesize_message
+from agent.prompts import build_hypothesize_message
 
 
 def do_hypothesize(agent: LLMAgent, scan_result: dict) -> dict:

@@ -6,7 +6,6 @@ Action confidence: context-dependent.
 """
 
 import copy
-from collections import Counter
 from .const import ACTION_NUM_TO_NAME, get_current_phase
 
 

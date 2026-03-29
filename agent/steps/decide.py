@@ -4,11 +4,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..agent import LLMAgent
+    from agent import LLMAgent
 
-from ..grid_utils import grid_to_image_base64_annotated, grid_to_image_base64
-from ..prompts import build_decide_message
-from ..fmt import fmt_history
+from agent.grid_utils import grid_to_image_base64_annotated, grid_to_image_base64
+from agent.prompts import build_decide_message
+from agent.fmt import fmt_history
 
 
 def do_decide(agent: LLMAgent, current_subgoal: dict, observe_result: dict, curr_grid: list[str]) -> list[str]:
