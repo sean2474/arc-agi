@@ -32,6 +32,9 @@ GOAL: {goal}
 
 {change_section}
 
+⚠️ NO-CHANGE SHORTCUT: If events are "(none)" AND the two images look identical, skip all steps and respond only with:
+{{"changes": "no changes observed", "moved_objects": {{}}, "new_objects": {{}}, "static_objects": [], "renamed_objects": {{}}, "relationship_updates": [], "contradictions": []}}
+
 STEP 1 - ACCEPT EVENTS: Treat events as ground truth.
   For each event, identify the object by its instance_id in WORLD MODEL > objects.
   Do NOT re-derive which object moved from the image — use the event list.
