@@ -17,18 +17,17 @@
 
 | 역할 | 모델 | 용도 |
 |------|------|------|
-| VLM | Qwen2.5-VL-7B | SCAN(이름/역할만), HYPOTHESIZE, OBSERVE, DECIDE, EVALUATE, UPDATE, INCIDENT |
+| VLM | Qwen2.5-VL-7B | OBSERVE, DECIDE, EVALUATE, UPDATE, INCIDENT |
 | 코드 | Python | blob 추출, diff 계산, 이벤트 감지, 카메라 추적, PLANNER, ANALYZE, 자동 재분류 |
 
-단일 VLM 구조. SCAN/DECIDE/REDEFINE은 이미지+텍스트, 나머지는 텍스트만. 32GB VRAM 제약.
+단일 VLM 구조. DECIDE/REDEFINE은 이미지+텍스트, 나머지는 텍스트만. 32GB VRAM 제약.
 **코드가 위치/크기/색상 100% 정확하게 계산 → VLM은 의미론적 해석만 담당.**
 
 ## 사이클 구조
 
 ```
 Phase 1 (첫 프레임):
-  [코드] detect_background + extract_blobs + auto_tag
-  → SCAN(VLM: 이름/역할만) → HYPOTHESIZE(VLM) → UPDATE(VLM) → phase 전환
+  [코드] detect_background + extract_blobs + auto_tag → phase 전환
 
 Phase 2~4 (시퀀스 실행 중이 아닐 때):
   PLANNER(코드) → DECIDE(VLM+이미지) → EXECUTE
@@ -48,14 +47,11 @@ Phase 2~4 (시퀀스 실행 중일 때):
 
 | Phase | 순서 | 호출 | 담당 | 역할 |
 |-------|------|------|------|------|
-| **Phase 1** | 1 | blob 추출 | 코드 | detect_background + extract_blobs. obj_NNN 키 부여. HUD 자동 태깅. |
-| **Phase 1** | 2 | SCAN | VLM+이미지 | 코드가 추출한 blob 목록 수신 → name, type_hypothesis 부여만. 위치/크기/색상 추정 금지. |
-| **Phase 1** | 3 | HYPOTHESIZE | VLM | 초기 가설 수립. 오브젝트 역할/게임타입/목표 추측. |
-| **Phase 1** | 4 | UPDATE | VLM | objects + 가설을 world_model에 저장. |
+| **Phase 1** | 1 | blob 추출 | 코드 | detect_background + extract_blobs. obj_NNN 키 부여. HUD 자동 태깅. phase 전환. |
 | **Phase 2** | 1 | PLANNER | 코드 | plans 리스트에서 pending 중 가장 우선 plan 선택. status → active. |
 | **Phase 2** | 2 | DECIDE | VLM+이미지 | current_subgoal + objects(bbox 포함) + 이미지 → action_sequence (최대 6개). |
 | **Phase 2** | 3 | EXECUTE | 코드 | pending_sequence에서 action 1개 pop 후 env.step(). |
-| **Phase 2~4** | 4 | diff+이벤트 | 코드 | 각 애니메이션 프레임 쌍마다: (1) 카메라 shift 감지(SSE) → (2) blob bbox 보정 → (3) 오브젝트 이동 delta 계산. 이벤트 merge 후 ANALYZE에 전달. |
+| **Phase 2** | 4 | diff+이벤트 | 코드 | 각 애니메이션 프레임 쌍마다: (1) 카메라 shift 감지(SSE) → (2) blob bbox 보정 → (3) 오브젝트 이동 delta 계산. 이벤트 merge 후 ANALYZE에 전달. |
 | **Phase 2** | 5 | REDEFINE | VLM+이미지 | split/merge/appear 시만. 영향 blob의 name/type_hypothesis 재부여. |
 | **Phase 2** | 5.5 | 자동 재분류 | 코드 | move 이벤트 발생한 blob 중 type=unknown/obstacle → controllable 자동 재분류. |
 | **Phase 2** | 6 | ANALYZE | 코드 | `pending_sequence` 남아있으면 continue(next action), 비었으면 done → mark_plan + OBSERVE. VLM 호출 없음. |
@@ -128,6 +124,5 @@ game_over 또는 level_complete 시에만 호출. ANALYZE 전에 실행.
 - JSON 구조만 "..."로
 - 게임 유형을 가정하는 용어 금지
 - goal이 좌표라는 가정 금지
-- SCAN: 코드가 blob 추출 후 LLM은 name/type_hypothesis만 부여
 - HUD: 가장자리 blob → step_counter/score/hud 라벨. 액션 대상 제외
 - No Fallback: 에러 시 RuntimeError. 조용한 대체 금지.

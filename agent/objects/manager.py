@@ -1,7 +1,7 @@
 import copy
 
 from .blob_extractor import detect_background_colors, extract_blobs, apply_color_merge_groups, match_blobs_cross_level
-from .camera import detect_frame_shift, grid_to_numpy
+from .camera import detect_frame_shift, detect_scale, grid_to_numpy
 from .event_detector import detect_frame_events, merge_events, match_blobs, detect_transform_rotation
 
 
@@ -132,6 +132,7 @@ class BlobManager:
         self._ever_moved_sigs: set = set()
         self._levels_completed: int = 0
         self._covered_by: dict[str, str] = {}
+        self._scale: int = detect_scale(initial_grid)
         # Archive: color_sig (frozenset) → canonical obj_id.
         # Persists across level transitions so the same blob type always gets
         # the same ID, allowing the agent to recognise recurring objects.
@@ -145,6 +146,11 @@ class BlobManager:
     @property
     def blob_count(self) -> int:
         return sum(1 for b in self._blobs.values() if b.is_present)
+
+    @property
+    def scale(self) -> int:
+        """Camera upscale factor (1, 2, 3, or 4). Divide screen-space coords by this to get game-space coords."""
+        return self._scale
 
     @property
     def archive(self) -> dict[frozenset, str]:
@@ -178,6 +184,7 @@ class BlobManager:
         self._ever_moved_sigs = set()
         self._levels_completed = 0
         self._covered_by = {}
+        self._scale = detect_scale(grid)
         self._populate_archive(blobs)
 
     def step(

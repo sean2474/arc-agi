@@ -153,6 +153,36 @@ def detect_frame_shift(
     return (0, 0, 0.0)
 
 
+def detect_scale(grid: list[str]) -> int:
+    """Detect camera upscale factor N from the rendered 64×64 grid.
+
+    ARCEngine scales a W×H camera viewport up by floor(64 / max(W, H)),
+    so every game pixel becomes an N×N screen-pixel block.
+
+    Strategy: for scale=N with a possible letterbox offset, consecutive rows/cols
+    inside the same N-row band must be pixel-identical. We search offsets 0..N-1
+    to handle odd-pixel letterboxing. Returns 1 (no upscale), 2, 3, or 4.
+    """
+    arr = grid_to_numpy(grid)
+    H, W = arr.shape
+
+    row_same = np.array([np.array_equal(arr[r], arr[r + 1]) for r in range(H - 1)])
+    col_same = np.array([np.array_equal(arr[:, c], arr[:, c + 1]) for c in range(W - 1)])
+
+    for n in (2, 3, 4):
+        for yo in range(n):
+            in_block_r = np.array([(r - yo) % n != n - 1 for r in range(H - 1)])
+            pairs_r = row_same[in_block_r]
+            if len(pairs_r) == 0 or np.mean(pairs_r) < 0.95:
+                continue
+            for xo in range(n):
+                in_block_c = np.array([(c - xo) % n != n - 1 for c in range(W - 1)])
+                pairs_c = col_same[in_block_c]
+                if len(pairs_c) > 0 and np.mean(pairs_c) >= 0.95:
+                    return n
+    return 1
+
+
 def analyse_animation_shifts(
     prev_grid: list[str],
     anim_frames: list[list[str]],

@@ -1,8 +1,7 @@
 """LLMAgent — Phase돌 사이클 에이젠트.
 
-Phase 1: SCAN → HYPOTHESIZE
-Phase 2+: [OBSERVE → ACTION ANALYZER] → PLANNER → DECIDE(이미지) → EXECUTE
-└─ mid-sequence: [OBSERVE → ACTION ANALYZER] → continue|abort|success
+Phase 1: blob 감지 (코드만)
+Phase 2+: PLANNER → DECIDE(이미지) → EXECUTE → OBSERVE → EVALUATE → UPDATE
 """
 
 import copy
@@ -11,12 +10,12 @@ import functools
 
 from arcengine import GameAction, GameState
 
-from .grid_utils import frame_to_compact, enrich_objects_bbox
+from .grid_utils import frame_to_compact
 from .models import StepRecord
 from .world_model import WorldModel
 from .prompts import SYSTEM_PROMPT, parse_llm_response
 from .actions import action_to_gameaction
-from .steps import do_scan, do_hypothesize, do_observe, do_decide, do_incident, do_update, do_evaluate
+from .steps import do_observe, do_decide, do_incident, do_update, do_evaluate
 from .objects import BlobManager
 
 
@@ -157,91 +156,31 @@ class LLMAgent:
 
         phase = self.world_model.phase
 
-        # ── Phase 1: SCAN → HYPOTHESIZE → UPDATE ──
+        # ── Phase 1: blob 감지 (코드만) ──
         if phase == "static_observation":
             print(f"  [{phase}]")
 
-            # BlobManager 초기화
             if self._blob_manager is None:
                 self._blob_manager = BlobManager(curr_grid)
-                print(f"  [BLOBS] detected: {self._blob_manager.blob_count}")
+                print(f"  [BLOBS] detected: {self._blob_manager.blob_count}, scale={self._blob_manager.scale}x")
 
-            print(f"  [SCAN]")
-            scan_result = do_scan(self, step, curr_grid, curr_levels,
-                                  blobs=self._blob_manager.blobs)
-
-            # object_roles (blob 기반 응답) 처리
-            object_roles = scan_result.get("object_roles", {})
-            if object_roles and isinstance(object_roles, dict):
-                for oid, role in object_roles.items():
-                    if not isinstance(role, dict):
-                        continue
-                    b = self._blob_manager.blobs.get(oid)
-                    if b:
-                        b.name = role.get("name") or b.name
-                        b.type_hypothesis = role.get("type_hypothesis") or b.type_hypothesis
-                self.world_model.sync_from_blobs(self._blob_manager.blobs)
-                for oid, role in object_roles.items():
-                    if isinstance(role, dict) and role.get("shape"):
-                        self.world_model.update_object(oid, shape=role["shape"])
-
-            # 기존 방식 fallback (blobs 없을 때 LLM이 objects 반환)
-            scan_objects = scan_result.get("objects", {})
-            if scan_objects and isinstance(scan_objects, dict):
-                enrich_objects_bbox(scan_objects, curr_grid)
-                self.world_model.merge_objects(scan_objects)
-
-            # HYPOTHESIZE
-            print(f"  [HYPOTHESIZE]")
-            hyp_result = do_hypothesize(self, scan_result)
-
-            # apply hypotheses to world model
-            obj_hyps = hyp_result.get("object_hypotheses", {})
-            for obj_id, hyp in obj_hyps.items():
-                if obj_id in self.world_model.get_objects():
-                    self.world_model.update_object(obj_id, type_hypothesis=hyp.get("type_hypothesis", "unknown"))
-
-            game_type = hyp_result.get("game_type", {})
-            if game_type:
-                self.world_model.set_game_type(game_type.get("hypothesis", "unknown"), game_type.get("confidence", 0.3))
-
-            for gh in hyp_result.get("goal_hypotheses", []):
-                if isinstance(gh, dict) and gh.get("description"):
-                    self.world_model.add_goal_hypothesis(
-                        gh["description"], gh.get("confidence", 0.3),
-                        gh.get("supporting_evidence"), gh.get("contradicting_evidence"),
-                    )
-
-            for rh in hyp_result.get("relationship_hypotheses", []):
-                if isinstance(rh, dict) and rh.get("subject_type") and rh.get("object_type"):
-                    self.world_model.add_relationship(
-                        rh["subject_type"], rh.get("relation", ""),
-                        rh["object_type"], rh.get("context", "any"),
-                        rh.get("interaction_result"), rh.get("confidence", 0.3),
-                    )
-
-            for ip in hyp_result.get("initial_plans", []):
-                if isinstance(ip, dict) and ip.get("description"):
-                    self.world_model.add_plan(
-                        ip["description"],
-                        priority=ip.get("priority", 99),
-                        confidence=ip.get("confidence", 0.3),
-                        rationale=ip.get("rationale", ""),
-                    )
-
+            self.world_model.sync_from_blobs(self._blob_manager.blobs, scale=self._blob_manager.scale)
+            self.world_model.add_plan(
+                "click each object once to discover effects",
+                priority=1,
+                confidence=0.3,
+                rationale="initial exploration — no hypotheses yet",
+            )
             self.world_model.update_phase()
-
-            hypothesis = f"objects: {list(scan_objects.keys())}" if scan_objects else "no objects detected"
-            reasoning = hyp_result.get("reasoning", "")
 
             record = StepRecord(
                 step=step, action="scan_only", state=curr_state.value,
                 levels_completed=curr_levels, grid=curr_grid,
-                observation=str(scan_result.get("patterns", [])),
-                hypothesis=hypothesis,
-                reasoning=reasoning,
-                goal="initial scan + hypothesize",
-                llm_phase="scan+hypothesize",
+                observation=f"blobs detected: {self._blob_manager.blob_count}",
+                hypothesis="blob detection only",
+                reasoning="",
+                goal="initial blob detection",
+                llm_phase="blob_detection",
                 prompts=dict(self._step_prompts) if self._step_prompts else None,
                 responses=dict(self._step_responses) if self._step_responses else None,
                 images=dict(self._step_images) if self._step_images else None,
@@ -284,7 +223,7 @@ class LLMAgent:
                         print(f"  [AUTO-RECLASSIFY] {oid}({blob.name or oid}): {old} → controllable")
 
                 _prev_wm_objects = copy.deepcopy(self.world_model.get_objects())
-                self.world_model.sync_from_blobs(self._blob_manager.blobs)
+                self.world_model.sync_from_blobs(self._blob_manager.blobs, scale=self._blob_manager.scale)
 
             # INCIDENT
             if is_game_over or is_level_complete:

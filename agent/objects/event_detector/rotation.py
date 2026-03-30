@@ -101,8 +101,7 @@ def detect_rotation_or_transform(
     if sse_zero == 0:
         return None  # identical after masking
 
-    ROT_THRESHOLD = 0.88      # SSE must improve by >12% — used for 90° multiples
-    ROT_THRESHOLD_OBLIQUE = 0.60  # SSE must improve by >40% — oblique angles (5° sweep)
+    ROT_THRESHOLD = 0.88      # SSE must improve by >12%
     pa_u8 = pa.astype(np.uint8)
 
     # --- Pass 1: 90-degree multiples first ---
@@ -125,7 +124,6 @@ def detect_rotation_or_transform(
         return {"kind": "rotation", "angle_deg": best_angle}
 
     # --- Color diff: pixel-level MAD on masked arrays (normalized 0-1 by max color value 9) ---
-    # Using the already-masked pa/pb_pad (covered regions are both 0, so they cancel out)
     nonzero_mask = (pa != 0) & (pb_pad != 0)
     if nonzero_mask.any():
         color_diff = float(np.mean(np.abs((pa - pb_pad)[nonzero_mask]))) / 9.0
@@ -137,18 +135,4 @@ def detect_rotation_or_transform(
         if debug_label:
             print(f"  [rot_dbg] {debug_label}: → TRANSFORM color_diff={color_diff:.3f}")
         return {"kind": "transform", "color_diff": round(color_diff, 3)}
-
-    # --- Pass 2: 5° step sweep (skip 90° and 180° already checked) ---
-    for deg in range(5, 181, 5):
-        if deg % 90 == 0:
-            continue
-        for signed_deg in (deg, -deg):
-            rotated = _rotate_np(pa_u8, signed_deg).astype(np.int16)
-            s = float(np.mean((rotated - pb_pad) ** 2))
-            if s < best_sse:
-                best_sse = s
-                best_angle = signed_deg
-
-    if best_sse < sse_zero * ROT_THRESHOLD_OBLIQUE:
-        return {"kind": "rotation", "angle_deg": best_angle}
     return None

@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from agent import LLMAgent
 
+import re as _re
+
 from agent.grid_utils import grid_to_image_base64_annotated, grid_to_image_base64
 from agent.prompts import build_decide_message
 from agent.fmt import fmt_history
@@ -17,10 +19,8 @@ def _no_effect_click_ids(history) -> set:
     for r in history:
         action = r.action or ""
         obs = (r.observation or "").strip().lower()
-        if "no changes" in obs and action.startswith("['click',"):
-            # action 형식: "['click', 'obj_003'@..." 또는 "['click', 'obj_003']"
-            import re
-            m = re.search(r"'(obj_\d+)'", action)
+        if "no changes" in obs and action.startswith("click(obj_"):
+            m = _re.search(r"click\((obj_\d+)", action)
             if m:
                 result.add(m.group(1))
     return result

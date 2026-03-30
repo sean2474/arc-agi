@@ -63,9 +63,10 @@ def action_to_gameaction(item, available_values: set[int], world_model: dict | N
     if isinstance(item, list) and len(item) == 2:
         key = item[0]
         if (key == "click" or key == 6) and isinstance(item[1], str) and world_model:
-            coords = resolve_click_object(item[1], world_model)
+            obj_ref = item[1].split("@")[0]  # strip @x,y suffix if present
+            coords = resolve_click_object(obj_ref, world_model)
             if coords:
-                return GameAction.ACTION6, f"click({item[1]}@{coords[0]},{coords[1]})", {"x": coords[0], "y": coords[1]}
+                return GameAction.ACTION6, f"click({obj_ref}@{coords[0]},{coords[1]})", {"x": coords[0], "y": coords[1]}
         return None
 
     # 일반 액션 이름

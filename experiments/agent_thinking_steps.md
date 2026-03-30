@@ -6,17 +6,16 @@
 
 | 역할 | 모델 | 용도 |
 |------|------|------|
-| VLM | Qwen2.5-VL-7B | SCAN(이름/역할 부여), HYPOTHESIZE, OBSERVE, DECIDE, EVALUATE, UPDATE, INCIDENT |
+| VLM | Qwen2.5-VL-7B | OBSERVE, DECIDE, EVALUATE, UPDATE, INCIDENT |
 
-VLM은 이미지도, 텍스트만도 처리 가능. SCAN/DECIDE/REDEFINE에 이미지 추가 전달.
+VLM은 이미지도, 텍스트만도 처리 가능. DECIDE/REDEFINE에 이미지 추가 전달.
 코드가 blob 추출 + diff 계산을 담당 → VLM은 의미론적 해석만.
 
 ## 전체 흐름
 
 ```
 Phase 1 (첫 프레임):
-  [코드] detect_background + extract_blobs
-  → SCAN(VLM: 이름/역할만) → HYPOTHESIZE(VLM) → UPDATE(VLM) → phase 전환
+  [코드] detect_background + extract_blobs + auto_tag → phase 전환
 
 Phase 2 (매 스텝):
   DECIDE(VLM+이미지) → EXECUTE
@@ -30,49 +29,13 @@ Phase 2 (매 스텝):
 
 ---
 
-### Phase 1-a: 코드 전처리 (VLM 호출 전)
+### Phase 1: 코드 전처리 (VLM 호출 없음)
 
 - `detect_background_colors(grid)` → 배경/벽 색상 집합
-- `extract_blobs(grid, bg_colors)` → 연결 컴포넌트 추출, 각 blob에 정확한 bbox/color/cell_count/shape_tags 부여
+- `extract_blobs(grid, bg_colors)` → 연결 컴포넌트 추출, 각 blob에 bbox/color/cell_count/shape_tags 부여
 - `obj_001`, `obj_002`... 키 자동 부여
 - HUD 후보 자동 태깅 (가장자리 blob)
-- 결과: blob 목록 (위치/크기/색상 100% 정확)
-
-### Phase 1-b: VLM 호출 — 이름/역할 부여만
-
-- 모델: **VLM (Qwen2.5-VL-7B)**
-- 입력: **코드가 추출한 blob 목록** (정확한 bbox/color 포함) + 이미지 (시각적 맥락용)
-- 목적: 각 blob에 게임 역할 기반 이름과 type_hypothesis 부여
-- VLM이 하는 일:
-  - blob의 시각적 맥락을 보고 name, type_hypothesis 결정
-  - 예: "희귀 단일 셀 → player", "가장자리 flat 직사각형 → platform"
-- VLM이 하지 않는 일:
-  - **위치/크기/색상 추정 금지** — 코드가 이미 제공
-  - 판단, 의도, 액션 제안 금지
-- 출력: `{"obj_001": {"name": "player", "type_hypothesis": "controllable"}, ...}`
-
-**VLM 호출 설정**: `thinking_budget=4096, max_tokens=8192`.
-
----
-
-## HYPOTHESIZE (Phase 1, SCAN 직후)
-
-"이것들이 뭘 의미할까?" — SCAN 결과를 보고 초기 가설 수립.
-
-- 입력: SCAN 결과 (objects + patterns) + available_actions
-- 목적: 각 오브젝트의 역할 추측 + 게임 타입 추측 + win condition 초기 가설
-- 하는 일:
-  - 각 오브젝트에 대해 type_hypothesis 추측 (배경? 벽? 조작 가능? 목표? 위험?)
-  - 게임 타입 추측 (네비게이션? 퍼즐? 클릭 기반? 패턴 매칭?)
-  - win condition 초기 가설 (뭘 해야 이길 수 있을지)
-  - 어떤 액션을 먼저 테스트해야 하는지 우선순위 제안
-  - 시각적 배치로 오브젝트 간 관계 초기 가설 수립 (`relationships`, confidence 0.3)
-    - 예: 이동 경로에 위치한 오브젝트 → "blocks or kills" 가설
-  - 전부 confidence 낮음 (0.3) — 검증 전이므로
-- 하지 않는 일:
-  - 액션 결정 (DECIDE의 역할)
-  - 확정적 판단 — 전부 가설일 뿐
-- 출력: type_hypothesis 업데이트 + game_type 가설 + goal 가설 + relationships 초기 가설 + 탐색 우선순위
+- phase 전환 → Phase 2로
 
 ---
 

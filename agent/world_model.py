@@ -198,10 +198,11 @@ class WorldModel:
 
     # ── BlobManager 동기화 ──
 
-    def sync_from_blobs(self, blobs: dict) -> None:
+    def sync_from_blobs(self, blobs: dict, scale: int = 1) -> None:
         """BlobManager blobs → WorldModel objects 동기화.
         blob의 위치/색/크기를 world model에 반영.
-        LLM이 부여한 name/type은 blob.name / blob.type_hypothesis에 저장돼 있으므로 그대로 씀.
+        LLM이 부여한 name/type은 blob.name / blob.type_hypothesis에 저장돼 있으므로 그대로 쓸.
+        scale: 카메라 upscale factor로 game-space position/size 산요에 사용.
         """
         for oid, b in blobs.items():
             if oid not in self._data["objects"]:
@@ -212,6 +213,16 @@ class WorldModel:
             obj["colors"] = list(b.colors) if b.colors else []
             obj["cell_count"] = b.cell_count
             obj["is_present"] = b.is_present
+            # Game-space position/size (divide screen coords by upscale factor)
+            bbox = b.bbox
+            obj["position"] = (
+                (bbox["row_min"] + bbox["row_max"]) // 2 // scale,
+                (bbox["col_min"] + bbox["col_max"]) // 2 // scale,
+            )
+            obj["size"] = (
+                (bbox["row_max"] - bbox["row_min"] + 1) // scale,
+                (bbox["col_max"] - bbox["col_min"] + 1) // scale,
+            )
             if b.name:
                 obj.setdefault("name", b.name)
             if b.type_hypothesis:
