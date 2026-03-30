@@ -20,44 +20,39 @@
 | VLM | Qwen2.5-VL-7B | OBSERVE, DECIDE, EVALUATE, UPDATE, INCIDENT |
 | 코드 | Python | blob 추출, diff 계산, 이벤트 감지, 카메라 추적, PLANNER, ANALYZE, 자동 재분류 |
 
-단일 VLM 구조. DECIDE/REDEFINE은 이미지+텍스트, 나머지는 텍스트만. 32GB VRAM 제약.
+단일 VLM 구조. DECIDE/OBSERVE는 이미지+텍스트, 나머지는 텍스트만. 32GB VRAM 제약.
 **코드가 위치/크기/색상 100% 정확하게 계산 → VLM은 의미론적 해석만 담당.**
 
 ## 사이클 구조
 
 ```
-Phase 1 (첫 프레임):
-  [코드] detect_background + extract_blobs + auto_tag → phase 전환
+매 스텝 (시퀀스 실행 중이 아닐 때):
+  [코드] BlobManager init/step → detect_scale → sync_from_blobs
+  → 자동 재분류 (move blob: unknown/obstacle → controllable)
+  → OBSERVE(VLM+이미지)  ← 첫 호출 시 unnamed blob 분류 포함
+  → EVALUATE(VLM) → UPDATE(VLM)
+  → PLANNER(코드) → DECIDE(VLM+이미지) → EXECUTE
 
-Phase 2~4 (시퀀스 실행 중이 아닐 때):
-  PLANNER(코드) → DECIDE(VLM+이미지) → EXECUTE
-  → [코드] blob diff + 이벤트 감지
-      ├─ split/merge/appear → REDEFINE(VLM: 영향 blob만)
-      └─ disappear         → is_present=false (코드)
-  → ANALYZE(코드: pending_sequence 기반) → OBSERVE(VLM) → EVALUATE(VLM) → UPDATE(VLM)
-
-Phase 2~4 (시퀀스 실행 중일 때):
-  EXECUTE → [코드] diff+이벤트 → 자동 재분류
+매 스텝 (시퀀스 실행 중일 때):
+  [코드] BlobManager step → 자동 재분류
   → ANALYZE(코드)
-  ├─ pending_sequence 있음: 다음 action 실행
-  └─ pending_sequence 없음: mark_plan(done) → OBSERVE → EVALUATE → UPDATE → PLANNER → DECIDE
+  ├─ pending 있음: 다음 action 실행
+  └─ pending 없음: OBSERVE → EVALUATE → UPDATE → PLANNER → DECIDE
 ```
 
 ### 호출 순서
 
-| Phase | 순서 | 호출 | 담당 | 역할 |
-|-------|------|------|------|------|
-| **Phase 1** | 1 | blob 추출 | 코드 | detect_background + extract_blobs. obj_NNN 키 부여. HUD 자동 태깅. phase 전환. |
-| **Phase 2** | 1 | PLANNER | 코드 | plans 리스트에서 pending 중 가장 우선 plan 선택. status → active. |
-| **Phase 2** | 2 | DECIDE | VLM+이미지 | current_subgoal + objects(bbox 포함) + 이미지 → action_sequence (최대 6개). |
-| **Phase 2** | 3 | EXECUTE | 코드 | pending_sequence에서 action 1개 pop 후 env.step(). |
-| **Phase 2** | 4 | diff+이벤트 | 코드 | 각 애니메이션 프레임 쌍마다: (1) 카메라 shift 감지(SSE) → (2) blob bbox 보정 → (3) 오브젝트 이동 delta 계산. 이벤트 merge 후 ANALYZE에 전달. |
-| **Phase 2** | 5 | REDEFINE | VLM+이미지 | split/merge/appear 시만. 영향 blob의 name/type_hypothesis 재부여. |
-| **Phase 2** | 5.5 | 자동 재분류 | 코드 | move 이벤트 발생한 blob 중 type=unknown/obstacle → controllable 자동 재분류. |
-| **Phase 2** | 6 | ANALYZE | 코드 | `pending_sequence` 남아있으면 continue(next action), 비었으면 done → mark_plan + OBSERVE. VLM 호출 없음. |
-| **Phase 2** | 7 | OBSERVE | VLM | before/after 이미지 비교. 이벤트 없고 이미지 동일 시 NO-CHANGE SHORTCUT으로 즉시 반환. |
-| **Phase 2** | 8 | EVALUATE | VLM | observe_result + current_subgoal → goal_achieved, reasoning, key_learnings, new_discoveries 반환. |
-| **Phase 2** | 9 | UPDATE | VLM | EVALUATE 결과 + discoveries → world_model + summary 갱신. |
+| 순서 | 호출 | 담당 | 역할 |
+|------|------|------|------|
+| 1 | BlobManager init/step | 코드 | 첫 스텝: extract_blobs + detect_scale. 이후: diff + 이벤트 감지. |
+| 2 | 자동 재분류 | 코드 | move 이벤트 blob 중 type=unknown/obstacle → controllable. |
+| 3 | ANALYZE | 코드 | `pending_sequence` 남아있으면 continue. 비었으면 OBSERVE로 진행. VLM 없음. |
+| 4 | OBSERVE | VLM+이미지 | before/after 이미지. 첫 호출 시 unnamed blob 분류(name+type). 이후는 변경 사항만. |
+| 5 | EVALUATE | VLM | observe_result + subgoal → goal_achieved, key_learnings. |
+| 6 | UPDATE | VLM | EVALUATE 결과 + discoveries → world_model + summary 갱신. |
+| 7 | PLANNER | 코드 | plans에서 pending 중 최우선 선택. |
+| 8 | DECIDE | VLM+이미지 | subgoal + objects + 이미지 → action_sequence (최대 6개). |
+| 9 | EXECUTE | 코드 | pending_sequence에서 action 1개 pop → env.step(). |
 
 ## PLANNER
 
@@ -71,6 +66,12 @@ pending 없으면 UPDATE에서 새 plan 생성 트리거.
 출력: `action_sequence` (최대 6개).
 click: **`["click", "obj_id"]`** 형식 (`obj_003` 등 instance_id 사용). `"click"` 단독 문자열 금지. name 사용 금지.
 
+## OBSERVE
+
+입력: before/after 이미지 + 이벤트 목록 + world_model.
+- **첫 호출 (unnamed blob 존재 시)**: STEP 0으로 name + type_hypothesis 부여. 결과는 `renamed_objects`로 반환.
+- **이후 호출**: 변경 사항(moved/appeared/disappeared)만 추적. 이미 이름 있는 오브젝트 재분류 생략.
+
 ## ANALYZE (코드, VLM 호출 없음)
 
 `pending_sequence` 기반 단순 판정. LLM 없음.
@@ -78,7 +79,7 @@ click: **`["click", "obj_id"]`** 형식 (`obj_003` 등 instance_id 사용). `"cl
 | 조건 | 결과 |
 |------|------|
 | `pending_sequence` 항목 남아있음 | continue — 다음 action 실행 |
-| `pending_sequence` 비어있음 | done — `mark_plan(done)` → UPDATE → PLANNER → DECIDE |
+| `pending_sequence` 비어있음 | done — `mark_plan(done)` → OBSERVE → EVALUATE → UPDATE → PLANNER → DECIDE |
 
 ## EVALUATE
 

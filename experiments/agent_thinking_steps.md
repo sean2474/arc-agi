@@ -8,66 +8,44 @@
 |------|------|------|
 | VLM | Qwen2.5-VL-7B | OBSERVE, DECIDE, EVALUATE, UPDATE, INCIDENT |
 
-VLM은 이미지도, 텍스트만도 처리 가능. DECIDE/REDEFINE에 이미지 추가 전달.
+VLM은 이미지도, 텍스트만도 처리 가능. DECIDE/OBSERVE에 이미지 추가 전달.
 코드가 blob 추출 + diff 계산을 담당 → VLM은 의미론적 해석만.
 
 ## 전체 흐름
 
 ```
-Phase 1 (첫 프레임):
-  [코드] detect_background + extract_blobs + auto_tag → phase 전환
+매 스텝 (시퀀스 종료 시):
+  [코드] BlobManager init/step → detect_scale → sync_from_blobs
+  → 자동 재분류 (move blob: unknown/obstacle → controllable)
+  → OBSERVE(VLM+이미지)  ← 첫 호출 시 unnamed blob 분류 포함
+  → EVALUATE(VLM) → UPDATE(VLM)
+  → PLANNER(코드) → DECIDE(VLM+이미지) → EXECUTE
 
-Phase 2 (매 스텝):
-  DECIDE(VLM+이미지) → EXECUTE
-  → [코드] blob diff + 이벤트 감지
-      ├─ split/merge/appear → REDEFINE(VLM: 영향 blob만)
-      └─ disappear → is_present=false
-  → ANALYZE(코드: pending_sequence 기반)
-      ├─ pending 있음: 다음 action 실행
-      └─ 빗: OBSERVE(VLM) → EVALUATE(VLM) → UPDATE(VLM) → PLANNER → DECIDE
+매 스텝 (시퀀스 실행 중):
+  [코드] BlobManager step → 자동 재분류
+  → ANALYZE(코드)
+  ├─ pending 있음: 다음 action 실행
+  └─ pending 없음: OBSERVE → EVALUATE → UPDATE → PLANNER → DECIDE
 ```
 
 ---
 
-### Phase 1: 코드 전처리 (VLM 호출 없음)
+### 코드 전처리 (BlobManager)
 
-- `detect_background_colors(grid)` → 배경/벽 색상 집합
-- `extract_blobs(grid, bg_colors)` → 연결 컴포넌트 추출, 각 blob에 bbox/color/cell_count/shape_tags 부여
-- `obj_001`, `obj_002`... 키 자동 부여
-- HUD 후보 자동 태깅 (가장자리 blob)
-- phase 전환 → Phase 2로
+**첫 스텝:**
+- `detect_background_colors(grid)` → 배경 색상 집합
+- `extract_blobs(grid, bg_colors)` → flood fill, `obj_001`... 키 부여
+- `detect_scale(grid)` → 카메라 upscale factor (1/2/3/4)
+- `sync_from_blobs(scale=N)` → game-space position/size world model에 저장
 
----
-
-### 코드 이벤트 감지 → REDEFINE 트리거
-
-OBSERVE 완료 후, 코드가 blob diff를 분석해서 구조적 이벤트를 감지:
-
-| 이벤트 | 조건 | 처리 |
-|--------|------|------|
-| **split** | 이전에 같이 움직이던 두 blob의 이동 벡터가 달라짐 | REDEFINE 트리거 |
-| **merge** | 이전에 별개였던 두 blob이 touching + 같은 벡터로 이동 | REDEFINE 트리거 |
-| **appear** | 이전 프레임에 없던 blob 등장 | REDEFINE 트리거 |
-| **disappear** | 이전 프레임에 있던 blob 소멸 | `is_present=false` 처리 |
-
-이벤트가 없으면 REDEFINE 생략 — 매 스텝 실행 아님.
+**이후 스텝:**
+- `BlobManager.step(anim_frames)` → 이벤트 감지 (move/collide/appear/disappear/rotation)
+- `sync_from_blobs(scale=N)` → 갱신
 
 ### 자동 재분류 (코드)
 
 move 이벤트가 발생한 blob 중 `type_hypothesis`가 `unknown` 또는 `obstacle`인 것은
 코드가 `controllable`로 자동 재분류. LLM 호출 없음.
-
----
-
-## REDEFINE (이벤트 트리거 시만)
-
-- 입력: 이벤트 타입 + **affected blob 목록** + 현재 이미지 (해당 영역 crop 또는 bbox overlay)
-- 목적: split/merge/appear 된 blob들의 name, type_hypothesis 재부여
-- LLM이 하는 일:
-  - 영향받은 blob만 대상 — 전체 재분석 아님
-  - 기존 오브젝트와의 관계 설명 ("이게 obj_003이 split된 것" 등)
-- 출력: affected blob들에 대한 name/type_hypothesis 업데이트
-- SCAN의 축소판 — 전체 그리드가 아닌 변화된 부분만
 
 ---
 
@@ -170,13 +148,24 @@ appear / disappear / collide → 발생한 프레임 시점에 기록
 
 ---
 
+## OBSERVE (VLM + 이미지)
+
+- 입력: before/after 이미지 + 이벤트 목록 + world_model
+- **STEP 0 (unnamed blob 존재 시만)**: 이미지를 보고 각 unnamed obj에 name + type_hypothesis 부여
+  - 결과는 `renamed_objects` 필드로 반환 → 기존 경로 재사용
+  - 이미 name 있으면 이 단계 스킵
+- **STEP 1~5**: 이벤트 기반 변경 추적, 재분류, 관계 갱신
+- 이벤트 없고 이미지 동일 시 NO-CHANGE SHORTCUT으로 즉시 반환
+
+---
+
 ## ANALYZE (코드, VLM 호출 없음)
 
 `pending_sequence` 기반 단순 판정. LLM 없음.
 
 | 조건 | 결과 |
 |------|------|
-| `pending_sequence` 항목 남아있음 | continue — 다음 action 팬 후 실행 |
+| `pending_sequence` 항목 남아있음 | continue — 다음 action 실행 |
 | `pending_sequence` 비어있음 | done — `mark_plan(done)` → OBSERVE → EVALUATE → UPDATE → PLANNER → DECIDE |
 
 ---

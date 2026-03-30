@@ -47,8 +47,6 @@ def fmt_world_model_prompt(wm: dict) -> str:
     gt = wm.get("game_type", {})
     if isinstance(gt, dict) and gt.get("hypothesis"):
         lines.append(f"game_type: {gt['hypothesis']} (conf: {gt.get('confidence', 0):.1f})")
-    if wm.get("phase"):
-        lines.append(f"phase: {wm['phase']}")
     objects = wm.get("objects", [])
     if objects:
         lines.append("objects:")

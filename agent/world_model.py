@@ -6,7 +6,7 @@ Action confidence: context-dependent.
 """
 
 import copy
-from .const import ACTION_NUM_TO_NAME, get_current_phase
+from .const import ACTION_NUM_TO_NAME
 
 
 class WorldModel:
@@ -14,7 +14,6 @@ class WorldModel:
 
     def __init__(self):
         self._data = {
-            "phase": "static_observation",
             "game_type": {},
             "actions": {},
             "controllable": {},
@@ -25,15 +24,6 @@ class WorldModel:
             "relationships": [],
             "plans": [],
         }
-
-    # ── Phase ──
-
-    @property
-    def phase(self) -> str:
-        return self._data["phase"]
-
-    def update_phase(self):
-        self._data["phase"] = get_current_phase(self._data)
 
     # ── Actions (context-dependent) ──
 
@@ -412,10 +402,9 @@ class WorldModel:
         top_goal = self.get_top_goal_hypothesis()
         prev_goal_desc = top_goal.get("description", "unknown") if top_goal else "unknown"
 
-        self._data["phase"] = "static_observation"
         self._data["objects"] = {}
 
-        # 이전 레벨 objects 지식 보존용 (SCAN 후 매칭에 사용)
+        # 이전 레벨 objects 지식 보존용 (레벨 전환 시 매칭에 사용)
         self._prev_level_objects = prev_objects
 
         # goal_hypotheses: confidence 유지하되 evidence 초기화

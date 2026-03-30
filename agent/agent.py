@@ -1,7 +1,6 @@
-"""LLMAgent — Phase돌 사이클 에이젠트.
+"""LLMAgent — ARC-AGI-3 사이클 에이전트.
 
-Phase 1: blob 감지 (코드만)
-Phase 2+: PLANNER → DECIDE(이미지) → EXECUTE → OBSERVE → EVALUATE → UPDATE
+매 스텝: BlobManager → 자동 재분류 → OBSERVE → EVALUATE → UPDATE → PLANNER → DECIDE → EXECUTE
 """
 
 import copy
@@ -30,7 +29,7 @@ def timed(fn):
 
 
 class LLMAgent:
-    """Phase 1: SCAN → UPDATE. Phase 2+: DECIDE → EXECUTE → OBSERVE → EVALUATE → UPDATE."""
+    """ARC-AGI-3 에이전트. BlobManager + VLM 사이클."""
 
     def __init__(
         self,
@@ -105,6 +104,7 @@ class LLMAgent:
                         {"role": "user", "content": content},
                     ],
                     "max_tokens": effective_max_tokens,
+                    "temperature": 0,
                 }
                 if thinking_budget is not None:
                     kwargs["extra_body"] = {"thinking_budget": thinking_budget}
@@ -154,44 +154,10 @@ class LLMAgent:
         self._step_responses = {}
         self._step_images = {}
 
-        phase = self.world_model.phase
-
-        # ── Phase 1: blob 감지 (코드만) ──
-        if phase == "static_observation":
-            print(f"  [{phase}]")
-
-            if self._blob_manager is None:
-                self._blob_manager = BlobManager(curr_grid)
-                print(f"  [BLOBS] detected: {self._blob_manager.blob_count}, scale={self._blob_manager.scale}x")
-
-            self.world_model.sync_from_blobs(self._blob_manager.blobs, scale=self._blob_manager.scale)
-            self.world_model.add_plan(
-                "click each object once to discover effects",
-                priority=1,
-                confidence=0.3,
-                rationale="initial exploration — no hypotheses yet",
-            )
-            self.world_model.update_phase()
-
-            record = StepRecord(
-                step=step, action="scan_only", state=curr_state.value,
-                levels_completed=curr_levels, grid=curr_grid,
-                observation=f"blobs detected: {self._blob_manager.blob_count}",
-                hypothesis="blob detection only",
-                reasoning="",
-                goal="initial blob detection",
-                llm_phase="blob_detection",
-                prompts=dict(self._step_prompts) if self._step_prompts else None,
-                responses=dict(self._step_responses) if self._step_responses else None,
-                images=dict(self._step_images) if self._step_images else None,
-                world_model=self.world_model.to_dict(),
-            )
-            self.prev_grid = curr_grid
-            self.prev_levels = curr_levels
-            self.history.append(record)
-            return None, record
-
-        # ── Phase 2~4 ──
+        # ── BlobManager init (if not done yet) ──
+        if self._blob_manager is None:
+            self._blob_manager = BlobManager(curr_grid)
+            print(f"  [BLOBS] detected: {self._blob_manager.blob_count}, scale={self._blob_manager.scale}x")
 
         incident_result = None
         observe_result = {}
@@ -204,26 +170,25 @@ class LLMAgent:
 
             # BlobManager step (INCIDENT보다 먼저 — level_transition_info 필요)
             level_transition_info = None
-            if self._blob_manager is not None:
-                anim_frames = [frame_to_compact(f) for f in obs.frame]
-                anim_ev, result_ev, _lvl = self._blob_manager.step(
-                    anim_frames, curr_levels, curr_state.value
-                )
-                self._last_anim_events = anim_ev
-                self._last_result_events = result_ev
-                level_transition_info = _lvl
+            anim_frames = [frame_to_compact(f) for f in obs.frame]
+            anim_ev, result_ev, _lvl = self._blob_manager.step(
+                anim_frames, curr_levels, curr_state.value
+            )
+            self._last_anim_events = anim_ev
+            self._last_result_events = result_ev
+            level_transition_info = _lvl
 
-                # 코드 자동 재분류: 이동한 blob이 unknown/obstacle이면 controllable로 업데이트
-                moved_ids = {ev["obj"] for ev in anim_ev if ev.get("type") == "move"}
-                for oid in moved_ids:
-                    blob = self._blob_manager.blobs.get(oid)
-                    if blob and blob.type_hypothesis in ("unknown", "obstacle", "static", None, ""):
-                        old = blob.type_hypothesis or "unknown"
-                        blob.type_hypothesis = "controllable"
-                        print(f"  [AUTO-RECLASSIFY] {oid}({blob.name or oid}): {old} → controllable")
+            # 코드 자동 재분류: 이동한 blob이 unknown/obstacle이면 controllable로 업데이트
+            moved_ids = {ev["obj"] for ev in anim_ev if ev.get("type") == "move"}
+            for oid in moved_ids:
+                blob = self._blob_manager.blobs.get(oid)
+                if blob and blob.type_hypothesis in ("unknown", "obstacle", "static", None, ""):
+                    old = blob.type_hypothesis or "unknown"
+                    blob.type_hypothesis = "controllable"
+                    print(f"  [AUTO-RECLASSIFY] {oid}({blob.name or oid}): {old} → controllable")
 
-                _prev_wm_objects = copy.deepcopy(self.world_model.get_objects())
-                self.world_model.sync_from_blobs(self._blob_manager.blobs, scale=self._blob_manager.scale)
+            _prev_wm_objects = copy.deepcopy(self.world_model.get_objects())
+            self.world_model.sync_from_blobs(self._blob_manager.blobs, scale=self._blob_manager.scale)
 
             # INCIDENT
             if is_game_over or is_level_complete:
@@ -351,13 +316,19 @@ class LLMAgent:
                 evaluation, discoveries = do_evaluate(self, observe_result, incident_result)
                 print("  [UPDATE]")
                 do_update(self, evaluation, discoveries, incident_result)
-                self.world_model.update_phase()
+        else:
+            # 첫 스텝: prev_grid 없음 → blob sync + initial plan
+            self.world_model.sync_from_blobs(self._blob_manager.blobs, scale=self._blob_manager.scale)
+            if not self.world_model.get_plans():
+                self.world_model.add_plan(
+                    "click each object once to discover effects",
+                    priority=1,
+                    confidence=0.3,
+                    rationale="initial exploration — no hypotheses yet",
+                )
 
         # PLANNER + DECIDE
         if need_replan:
-            phase = self.world_model.phase
-            print(f"  [{phase}]")
-
             # PLANNER (알고리즘)
             active_plan = self.world_model.select_next_plan()
             if active_plan is None:

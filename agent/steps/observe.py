@@ -1,4 +1,4 @@
-"""STEP: OBSERVE — Phase 2+ 전용. VLM + 코드 diff."""
+"""STEP: OBSERVE — VLM + 코드 diff. 첫 호출 시 unnamed blob 분류 포함."""
 from __future__ import annotations
 from typing import TYPE_CHECKING
 

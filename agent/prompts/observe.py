@@ -1,4 +1,4 @@
-"""OBSERVE — Phase 2+ 전용. VLM에 before/after 이미지 + 코드 diff 요약 전달."""
+"""OBSERVE — VLM에 before/after 이미지 + 코드 diff 요약 전달. 첫 호출 시 unnamed blob 분류 포함."""
 
 from agent.fmt import fmt_world_model_prompt
 
@@ -34,6 +34,13 @@ GOAL: {goal}
 
 NO-CHANGE SHORTCUT: If events are "(none)" AND the two images look identical, skip all steps and respond only with:
 {{"changes": "no changes observed", "moved_objects": {{}}, "new_objects": {{}}, "static_objects": [], "renamed_objects": {{}}, "relationship_updates": [], "contradictions": []}}
+
+STEP 0 - CLASSIFY UNNAMED (only if any object has no name yet):
+  Look at the annotated image. For each object whose name equals its obj_id (e.g. "obj_001") or is missing:
+  - Assign a descriptive game-role name (e.g. "player", "wall", "enemy", "goal", "platform").
+  - Assign type_hypothesis: one of controllable / obstacle / goal / hazard / collectible / hud / static / unknown.
+  - Add to renamed_objects with the obj_id as key.
+  If all objects already have meaningful names, skip this step entirely.
 
 STEP 1 - ACCEPT EVENTS: Treat events as ground truth.
   For each event, identify the object by its instance_id in WORLD MODEL > objects.

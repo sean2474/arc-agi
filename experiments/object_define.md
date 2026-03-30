@@ -111,16 +111,18 @@ src_c = -sin(a)*yr + cos(a)*xc + cx
 
 ---
 
-## 5단계: LLM에 역할 부여 요청
+## 5단계: LLM 역할 부여 — 첫 OBSERVE 시 분류
 
-코드가 추출한 blob 목록을 LLM에 전달. LLM은 위치/크기 추정 불필요.
+별도 SCAN 단계 없음. 첫 번째 OBSERVE 호출 시 unnamed blob에 대해 분류 수행.
+
+- OBSERVE 프롬프트에 STEP 0 추가: 아직 name이 없는 오브젝트는 이미지를 보고 name + type_hypothesis 부여
+- 이후 OBSERVE는 변경 사항만 추적 (이미 이름이 있으면 분류 스킵)
+- 분류 결과는 `renamed_objects` 응답 필드를 통해 world model에 반영 (기존 경로 재사용)
 
 ```
-Detected objects (code-extracted, exact positions):
-- blob_1: color=e, bbox=row10-14/col10-12, size=15 cells, rectangle, not rare
-- blob_2: color=9, bbox=row32-32/col20-20, size=1 cell, rare color → likely player or goal
-
-Assign: name, type_hypothesis for each blob.
+UNNAMED OBJECTS (classify on first OBSERVE):
+- obj_001: pos=(16,8) size=(3,3) colors=[blue]      → name="player", type="controllable"
+- obj_002: pos=(10,4) size=(8,1) colors=[gray]       → name="wall",   type="obstacle"
 ```
 
 ---
@@ -129,8 +131,9 @@ Assign: name, type_hypothesis for each blob.
 
 1. `detect_background_colors(grid)` — 빈도+분포 기반
 2. `extract_blobs(grid, bg_colors)` — flood fill
-3. `detect_camera_shift(prev_grid, curr_grid, bg_colors)` — 배경 패턴 비교
-4. SCAN 프롬프트 수정: 코드 추출 blob 목록 + 이름/역할만 요청
+3. `detect_frame_shift(prev_grid, curr_grid)` — 카메라 이동 감지
+4. `detect_scale(grid)` — 렌더 upscale factor 역산 (N×N 블록 균일성 검사)
+5. OBSERVE 프롬프트: 첫 호출 시 unnamed blob 분류 (name + type_hypothesis)
 
 ---
 
@@ -327,24 +330,22 @@ flat list이므로 동일 obj가 여러 번 등장 가능:
 
 ### `_detect_rotation_or_transform` 감지 순서
 ```
-1. 색상 마스킹 (NEW)
+1. 색상 마스킹
    crop_a, crop_b에서 blob 자체 색상 픽셀만 유지, 나머지 0으로 마스킹
-   colors_a/colors_b: set of hex chars (blob.colors, int(c,16) 비교)
    → 이동 시 배경/인접 blob 픽셀 차이로 인한 false rotation/transform 방지
 2. covering_bboxes 마스킹
    다른 blob이 덮은 영역을 crop_a, crop_b 양쪽 모두 0으로 설정
    → 오버랩 영역의 색 변화가 rotation/transform으로 오판되는 것 방지
-3. 90°/180°/270° SSE 체크
+3. 90°/180°/270° SSE 체크 (ARC 제약: 오브젝트는 90° 배수 회전만 존재)
    → SSE 12% 이상 개선 시 rotation 반환 (ROT_THRESHOLD=0.88)
 4. color_diff (pixel-level MAD)
    nonzero_mask = (pa != 0) & (pb_pad != 0)  ← intersection (AND)
    두 crop 모두 blob 픽셀이 있는 위치만 비교
-   → pa=0(coverage 후) but pb_pad≠0(노출) 케이스 제외 → false transform 방지
    color_diff = mean(|pa - pb_pad|[intersection]) / 9.0
    color_diff >= 0.05 → transform 반환
-5. 세부 각도 1° 탐색 (90° 배수 제외)
-   → SSE 12% 이상 개선 시 rotation 반환
 ```
+
+**참고**: 5° 단위 oblique 각도 탐색은 제거됨. ARCEngine 제약 상 오브젝트는 0°/90°/180°/270° 회전만 존재.
 
 **핵심 설계 이유 (intersection vs union)**:
 - collision 후 blob A가 blob B 위를 지나갔다 떠날 때:
@@ -445,6 +446,31 @@ if game_state == "GAME_OVER":
 - tracking 상태(`_blobs`, `_covered_by` 등) 유지
 - `current_frame`만 마지막 프레임으로 업데이트
 - `game_over` 이벤트 1개만 emit
+
+---
+
+## 카메라 스케일 감지 (`detect_scale`)
+
+### 배경
+ARCEngine은 W×H 카메라 뷰포트를 `scale = floor(64 / max(W, H))`로 64×64에 맞게 확대 렌더링.
+따라서 실제 게임 픽셀 수는 64×64가 아닐 수 있음.
+
+### 감지 방법
+연속 행/열 중 N-블록 내부 쌍이 픽셀 동일한지 검사 (95% 이상 → scale=N).
+lettterbox offset 처리를 위해 offset 0..N-1 전부 시도.
+
+```python
+for n in (2, 3, 4):
+    for yo in range(n):
+        in_block_r = [(r - yo) % n != n - 1 for r in range(H-1)]
+        if mean(row_same[in_block_r]) >= 0.95:
+            return n  # scale detected
+```
+
+### 활용
+- `BlobManager.scale` 프로퍼티로 노출
+- `sync_from_blobs(scale=N)` → `position`, `size`를 게임 공간 좌표로 정규화해 world model에 저장
+- LLM에게 게임 공간 기준 위치/크기 전달 (스크린 좌표 ÷ scale)
 
 ---
 
