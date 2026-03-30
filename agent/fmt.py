@@ -9,7 +9,7 @@ def fmt_colors(colors: list) -> str:
     return ",".join(ARC_COLOR_NAMES.get(c, c) for c in colors) if colors else ""
 
 
-def fmt_objects_prompt(objects) -> str:
+def fmt_objects_prompt(objects, excluded_ids: set | None = None) -> str:
     """world model objects (list or dict) → prompt 텍스트."""
     if not objects:
         return "  (none)"
@@ -17,6 +17,8 @@ def fmt_objects_prompt(objects) -> str:
         items = list(objects.items())
     else:
         items = [(o.get("instance_id", "?"), o) for o in objects if isinstance(o, dict)]
+    if excluded_ids:
+        items = [(oid, obj) for oid, obj in items if oid not in excluded_ids]
     lines = []
     for oid, obj in items:
         if not isinstance(obj, dict):

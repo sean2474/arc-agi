@@ -220,6 +220,15 @@ class LLMAgent:
                         rh.get("interaction_result"), rh.get("confidence", 0.3),
                     )
 
+            for ip in hyp_result.get("initial_plans", []):
+                if isinstance(ip, dict) and ip.get("description"):
+                    self.world_model.add_plan(
+                        ip["description"],
+                        priority=ip.get("priority", 99),
+                        confidence=ip.get("confidence", 0.3),
+                        rationale=ip.get("rationale", ""),
+                    )
+
             self.world_model.update_phase()
 
             hypothesis = f"objects: {list(scan_objects.keys())}" if scan_objects else "no objects detected"
@@ -413,10 +422,9 @@ class LLMAgent:
             # PLANNER (알고리즘)
             active_plan = self.world_model.select_next_plan()
             if active_plan is None:
-                # pending plan 없음 — 폴백 plan 추가
-                self.world_model.add_plan("explore: test available actions", priority=99, rationale="no plans remaining")
-                active_plan = self.world_model.select_next_plan()
-            self.current_subgoal = active_plan or {}
+                plans = self.world_model.get_plans()
+                raise RuntimeError(f"PLANNER: no pending plans — UPDATE must create plans. current plans: {plans}")
+            self.current_subgoal = active_plan
             print(f"  [PLAN] {self.current_subgoal.get('description', '?')}")
 
             # DECIDE

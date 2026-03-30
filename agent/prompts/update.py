@@ -69,7 +69,9 @@ Update both the summary and world model. Respond in JSON:
     "relationships": [
       {{"subject_type": "name (shape, color)", "relation": "...", "object_type": "name (shape, color)", "context": "...", "interaction_result": null, "confidence": 0.0}}
     ],
-    "plan": {{"description": "...", "confidence": 0.0}}
+    "plans": [
+      {{"description": "...", "priority": 1, "confidence": 0.0, "rationale": "...", "status": "pending"}}
+    ]
   }}
 }}
 
@@ -88,5 +90,8 @@ Rules:
   Fill interaction_result once observed. Set confidence 0.7+ when confirmed.
 - interactions: add successful action-triggered interactions. Remove failed ones.
 - dangers: add if game_over after interaction with an object.
-- plan: update based on top goal hypothesis and current phase.
+- plans: provide 1-3 concrete next action plans. Each must have description, priority (1=highest), confidence, rationale, status=pending.
+  If goal_achieved=true: mark current plan done and add follow-up plan.
+  If goal_achieved=false: add retry or alternative plan.
+  Always include at least one pending plan.
 - Keep concise."""

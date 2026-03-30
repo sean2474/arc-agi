@@ -21,6 +21,7 @@ def build_decide_message(
     summary: dict,
     world_model: dict | None = None,
     history: str = "  (none)",
+    excluded_click_ids: set | None = None,
 ) -> str:
     actions_names = _actions_as_names(available_actions)
     has_click = _has_click(available_actions)
@@ -61,7 +62,7 @@ ACTION HISTORY (action → result):
 LAST OBSERVATION: {obs_text}
 
 KNOWN OBJECTS
-{fmt_objects_prompt(objects)}
+{fmt_objects_prompt(objects, excluded_ids=excluded_click_ids)}
 
 ACTIONS
 {actions_text}

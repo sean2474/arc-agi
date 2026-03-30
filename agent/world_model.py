@@ -207,6 +207,7 @@ class WorldModel:
             if oid not in self._data["objects"]:
                 self._data["objects"][oid] = {}
             obj = self._data["objects"][oid]
+            obj["instance_id"] = oid
             obj["bbox"] = b.bbox
             obj["colors"] = list(b.colors) if b.colors else []
             obj["cell_count"] = b.cell_count
@@ -373,6 +374,10 @@ class WorldModel:
                         obj_, r.get("context", "any"),
                         r.get("interaction_result"), r.get("confidence", 0.3),
                     )
+
+        if "plan" in updated_wm and isinstance(updated_wm["plan"], dict) and "plans" not in updated_wm:
+            updated_wm = dict(updated_wm)
+            updated_wm["plans"] = [updated_wm.pop("plan")]
 
         if "plans" in updated_wm and isinstance(updated_wm["plans"], list):
             for p in updated_wm["plans"]:

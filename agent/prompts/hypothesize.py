@@ -40,6 +40,9 @@ Respond in JSON:
     {{"subject_type": "name (shape, color)", "relation": "...", "object_type": "name (shape, color)", "context": "...", "interaction_result": null, "confidence": 0.3}}
   ],
   "test_priority": ["action1", "action2"],
+  "initial_plans": [
+    {{"description": "...", "priority": 1, "confidence": 0.3, "rationale": "..."}}
+  ],
   "reasoning": "..."
 }}
 
@@ -49,4 +52,5 @@ Rules:
 - goal_hypotheses: list ALL plausible win conditions you can think of.
 - relationship_hypotheses: objects that look dangerous, activatable, or linked. Use "name (shape, color)" format.
 - test_priority: which actions to test first, ordered by expected information gain.
-- Objects named "step_counter", "score", or "hud" are display elements — exclude from object_hypotheses and do NOT assign them interactive roles."""
+- Objects named "step_counter", "score", or "hud" are display elements — exclude from object_hypotheses and do NOT assign them interactive roles.
+- initial_plans: 1-3 concrete first actions to take based on available actions and object hypotheses. Must have description, priority (1=highest), confidence, rationale."""
