@@ -1,15 +1,8 @@
-"""Agent base 인터페이스 테스트."""
+"""Agent base 데이터 클래스 + Protocol 테스트."""
 
 from arcengine import GameAction
 
 from src.agent.base import Agent, AgentResponse, GameState
-
-
-class DummyAgent(Agent):
-    """테스트용 더미 에이전트."""
-
-    def choose_action(self, state: GameState) -> AgentResponse:
-        return AgentResponse(action=GameAction.ACTION1, reasoning="dummy")
 
 
 def test_game_state_creation() -> None:
@@ -25,14 +18,37 @@ def test_game_state_creation() -> None:
     assert state.extracted is None
 
 
+def test_game_state_with_extracted() -> None:
+    state = GameState(
+        game_id="test",
+        frame_raw=[],
+        available_actions=[1],
+        state="NOT_FINISHED",
+        levels_completed=0,
+        step_number=0,
+        extracted={"player": (10, 20)},
+    )
+    assert state.extracted == {"player": (10, 20)}
+
+
 def test_agent_response() -> None:
     resp = AgentResponse(action=GameAction.ACTION1, reasoning="test")
     assert resp.action == GameAction.ACTION1
     assert resp.data is None
 
 
-def test_dummy_agent() -> None:
-    agent = DummyAgent()
-    state = GameState("test", [], [1], "NOT_FINISHED", 0, 0)
-    resp = agent.choose_action(state)
-    assert resp.action == GameAction.ACTION1
+def test_agent_response_with_data() -> None:
+    resp = AgentResponse(
+        action=GameAction.ACTION6,
+        data={"x": 32, "y": 32},
+        reasoning="click",
+    )
+    assert resp.data == {"x": 32, "y": 32}
+    assert resp.reasoning == "click"
+
+
+def test_agent_protocol_is_importable() -> None:
+    """Agent Protocol이 정상적으로 import 가능한지 확인."""
+    assert hasattr(Agent, "choose_action")
+    assert hasattr(Agent, "on_episode_start")
+    assert hasattr(Agent, "on_episode_end")

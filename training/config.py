@@ -30,7 +30,7 @@ class TrainingConfig:
     games: list[str] | None = None  # None이면 전체
 
     # Claude Evaluator
-    evaluator_model: str = "claude-sonnet-4-20250514"
+    evaluator_model: str = "claude-opus-4-6"
 
     # 체크포인트
     save_interval: int = 100      # N 에피소드마다 체크포인트 저장

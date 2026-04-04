@@ -6,6 +6,7 @@
 """
 
 from abc import ABC, abstractmethod
+from typing import Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -42,11 +43,112 @@ class DefaultExtractor(StateExtractor):
         }
 
 
+class GameDataAccessor(Protocol):
+    """게임 인스턴스의 내부 데이터에 접근하는 인터페이스. (DIP)"""
+
+    @property
+    def player_x(self) -> int: ...
+
+    @property
+    def player_y(self) -> int: ...
+
+    @property
+    def shape_index(self) -> int: ...
+
+    @property
+    def color_index(self) -> int: ...
+
+    @property
+    def rotation_index(self) -> int: ...
+
+    @property
+    def slots(self) -> list: ...
+
+    @property
+    def slot_cleared(self) -> list[bool]: ...
+
+    @property
+    def slot_shapes(self) -> list[int]: ...
+
+    @property
+    def slot_colors(self) -> list[int]: ...
+
+    @property
+    def slot_rotations(self) -> list[int]: ...
+
+    @property
+    def energy(self) -> int: ...
+
+    @property
+    def max_energy(self) -> int: ...
+
+    @property
+    def lives(self) -> int: ...
+
+
+class Ls20GameAccessor:
+    """ls20 게임 인스턴스를 GameDataAccessor Protocol로 래핑한다."""
+
+    def __init__(self, game_instance: object) -> None:
+        self._game = game_instance
+
+    @property
+    def player_x(self) -> int:
+        return self._game.mgu.x  # type: ignore[attr-defined]
+
+    @property
+    def player_y(self) -> int:
+        return self._game.mgu.y  # type: ignore[attr-defined]
+
+    @property
+    def shape_index(self) -> int:
+        return self._game.snw  # type: ignore[attr-defined]
+
+    @property
+    def color_index(self) -> int:
+        return self._game.tmx  # type: ignore[attr-defined]
+
+    @property
+    def rotation_index(self) -> int:
+        return self._game.tuv  # type: ignore[attr-defined]
+
+    @property
+    def slots(self) -> list:
+        return self._game.qqv  # type: ignore[attr-defined]
+
+    @property
+    def slot_cleared(self) -> list[bool]:
+        return self._game.rzt  # type: ignore[attr-defined]
+
+    @property
+    def slot_shapes(self) -> list[int]:
+        return self._game.gfy  # type: ignore[attr-defined]
+
+    @property
+    def slot_colors(self) -> list[int]:
+        return self._game.vxy  # type: ignore[attr-defined]
+
+    @property
+    def slot_rotations(self) -> list[int]:
+        return self._game.cjl  # type: ignore[attr-defined]
+
+    @property
+    def energy(self) -> int:
+        return self._game.ggk.snw  # type: ignore[attr-defined]
+
+    @property
+    def max_energy(self) -> int:
+        return self._game.ggk.tmx  # type: ignore[attr-defined]
+
+    @property
+    def lives(self) -> int:
+        return self._game.lbq  # type: ignore[attr-defined]
+
+
 class Ls20Extractor(StateExtractor):
     """ls20 전용 추출기.
 
-    ceiling test용: 게임 내부 클래스에 직접 접근하여
-    플레이어 위치, 도구 상태, 슬롯 정보 등을 추출한다.
+    GameDataAccessor를 통해 게임 데이터에 접근한다. (DIP)
     """
 
     COLORS = {12: "red", 9: "orange", 14: "cyan", 8: "blue"}
@@ -54,40 +156,40 @@ class Ls20Extractor(StateExtractor):
     SHAPES = ["shape_0", "shape_1", "shape_2", "shape_3", "shape_4", "shape_5"]
     ROTATIONS = [0, 90, 180, 270]
 
-    def __init__(self, game_instance: object) -> None:
-        self._game = game_instance
+    def __init__(self, accessor: GameDataAccessor) -> None:
+        self._accessor = accessor
 
     def extract(self, state: GameState) -> dict:
-        g = self._game
+        a = self._accessor
 
         # 플레이어 위치
-        player_x = g.mgu.x
-        player_y = g.mgu.y
+        player_x = a.player_x
+        player_y = a.player_y
 
         # 도구 상태
-        shape_idx = g.snw
-        color_idx = g.tmx
-        rotation_idx = g.tuv
+        shape_idx = a.shape_index
+        color_idx = a.color_index
+        rotation_idx = a.rotation_index
         color_value = self.COLOR_ORDER[color_idx]
 
         # 슬롯 정보
         slots = []
-        for i, slot_sprite in enumerate(g.qqv):
-            if g.rzt[i]:
+        for i, slot_sprite in enumerate(a.slots):
+            if a.slot_cleared[i]:
                 continue  # 이미 클리어된 슬롯
             slots.append({
                 "index": i,
                 "x": slot_sprite.x,
                 "y": slot_sprite.y,
-                "required_shape": g.gfy[i],
-                "required_color": self.COLOR_ORDER[g.vxy[i]],
-                "required_rotation": self.ROTATIONS[g.cjl[i]],
+                "required_shape": a.slot_shapes[i],
+                "required_color": self.COLOR_ORDER[a.slot_colors[i]],
+                "required_rotation": self.ROTATIONS[a.slot_rotations[i]],
             })
 
         # 에너지 & lives
-        energy = g.ggk.snw
-        max_energy = g.ggk.tmx
-        lives = g.lbq
+        energy = a.energy
+        max_energy = a.max_energy
+        lives = a.lives
 
         # 매치 체크 — 현재 도구가 어떤 슬롯과 매치되는지
         current_tool = (shape_idx, color_value, self.ROTATIONS[rotation_idx])
@@ -135,7 +237,6 @@ class Ls20Extractor(StateExtractor):
         for ty in range(0, 64, tile_size):
             row = ""
             for tx in range(0, 64, tile_size):
-                # 이 타일의 주요 색상 확인
                 tile = frame[ty:ty + tile_size, tx:tx + tile_size]
 
                 if player_x == tx and player_y == ty:

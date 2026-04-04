@@ -1,10 +1,11 @@
-"""호환용 데이터 클래스. 공식 Agent는 agents/agent.py를 사용.
+"""에이전트 기본 타입 정의.
 
-기존 src/ 모듈이 참조하는 GameState, AgentResponse만 유지.
-Agent ABC는 제거됨 — 공식 agents.agent.Agent를 직접 상속할 것.
+Agent Protocol + GameState/AgentResponse 데이터 클래스.
 """
 
 from dataclasses import dataclass
+from typing import Protocol
+
 from arcengine import GameAction
 
 
@@ -28,3 +29,13 @@ class AgentResponse:
     action: GameAction
     data: dict | None = None
     reasoning: str = ""
+
+
+class Agent(Protocol):
+    """에이전트 인터페이스. 구조적 서브타이핑(Protocol)으로 구현."""
+
+    def choose_action(self, state: GameState) -> AgentResponse: ...
+
+    def on_episode_start(self, game_id: str) -> None: ...
+
+    def on_episode_end(self, result: str, total_steps: int) -> None: ...

@@ -6,6 +6,7 @@ prompt_builder가 만든 메시지를 보내고 응답을 반환할 뿐.
 
 import os
 from dataclasses import dataclass
+from typing import Protocol
 
 import anthropic
 from dotenv import load_dotenv
@@ -19,6 +20,14 @@ class LLMResponse:
     input_tokens: int
     output_tokens: int
     model: str
+
+
+class LLMClient(Protocol):
+    """LLM 클라이언트 인터페이스. DIP를 위한 Protocol."""
+
+    def send(self, system: str, messages: list[dict]) -> LLMResponse: ...
+
+    def get_usage_summary(self) -> str: ...
 
 
 class AnthropicClient:

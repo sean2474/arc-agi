@@ -19,8 +19,12 @@ class PromptBuilder(ABC):
         ...
 
     @abstractmethod
-    def build_user_message(self, state: GameState, history: list[dict]) -> str:
-        """현재 상태로부터 유저 메시지를 생성한다."""
+    def build_user_message(self, state: GameState, history: list[dict]) -> str | list:
+        """현재 상태로부터 유저 메시지를 생성한다.
+
+        Returns:
+            str (텍스트 전용) 또는 list (이미지 + 텍스트 블록).
+        """
         ...
 
 
@@ -30,7 +34,7 @@ class Ls20PromptBuilder(PromptBuilder):
     def build_system(self) -> str:
         return LS20_SYSTEM_PROMPT
 
-    def build_user_message(self, state: GameState, history: list[dict]) -> str:
+    def build_user_message(self, state: GameState, history: list[dict]) -> str | list:
         ext = state.extracted
         if not ext:
             return "No state available."

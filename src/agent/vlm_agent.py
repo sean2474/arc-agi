@@ -4,25 +4,26 @@
 매번 최신 프레임을 보므로 벽에 막히면 바로 방향 전환 가능.
 """
 
-import re
-
 from arcengine import GameAction
 
-from src.agent.base import Agent, AgentResponse, GameState
-from src.llm.client import AnthropicClient
+from src.agent.base import AgentResponse, GameState
+from src.llm.client import LLMClient
 from src.llm.prompt_builder import PromptBuilder
+from src.llm.response_parser import ResponseParser
 
 
-class VLMAgent(Agent):
-    """VLM 기반 에이전트 — 매 스텝 이미지 + 단일 액션."""
+class VLMAgent:
+    """VLM 기반 에이전트 — 매 스텝 이미지 + 단일 액션. Agent Protocol을 구조적으로 만족."""
 
     def __init__(
         self,
-        client: AnthropicClient,
+        client: LLMClient,
         prompt_builder: PromptBuilder,
+        parser: ResponseParser,
     ) -> None:
         self._client = client
         self._prompt_builder = prompt_builder
+        self._parser = parser
         self._system = prompt_builder.build_system()
         self._history: list[dict] = []
 
@@ -36,7 +37,7 @@ class VLMAgent(Agent):
             messages = [{"role": "user", "content": content}]
 
         response = self._client.send(system=self._system, messages=messages)
-        action_id, reasoning = self._parse_response(response.content)
+        action_id, reasoning = self._parser.parse(response.content)
 
         self._history.append({
             "step": state.step_number,
@@ -49,19 +50,6 @@ class VLMAgent(Agent):
             action=GameAction.from_id(action_id),
             reasoning=reasoning,
         )
-
-    def _parse_response(self, content: str) -> tuple[int, str]:
-        """VLM 응답에서 단일 액션과 reasoning을 추출한다."""
-        action_match = re.search(r'"action"\s*:\s*(\d+)', content)
-        action_id = int(action_match.group(1)) if action_match else 1
-
-        if action_id < 1 or action_id > 4:
-            action_id = 1
-
-        thinking_match = re.search(r'"thinking"\s*:\s*"(.*?)"', content, re.DOTALL)
-        reasoning = thinking_match.group(1)[:500] if thinking_match else content[:200]
-
-        return action_id, reasoning
 
     def on_episode_start(self, game_id: str) -> None:
         self._history = []

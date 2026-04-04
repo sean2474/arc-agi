@@ -1,34 +1,121 @@
 """Planner-Actor-Observer 에이전트.
 
-Planner: goal/subgoal 설정 (VLM, 드물게)
-Actor: subgoal 방향으로 액션 선택 (VLM, 매 스텝)
-Observer: 프레임 변화 감지 (코드, 매 스텝)
+SRP에 따라 3개의 클래스로 분리:
+- PlannerService: goal/subgoal 설정 (VLM, 드물게)
+- ActorService: subgoal 방향으로 액션 선택 (VLM, 매 스텝)
+- PAOAgent: 조율자 — Planner, Actor, Observer를 연결
 """
-
-import re
-import json
 
 import numpy as np
 from arcengine import GameAction
 
-from src.agent.base import Agent, AgentResponse, GameState
-from src.env.observer import Observer, Observation
-from src.llm.client import AnthropicClient
+from src.agent.base import AgentResponse, GameState
+from src.env.observer import Observation, Observer
+from src.llm.client import LLMClient
 from src.llm.frame_renderer import frame_to_base64
 from src.llm.pao_prompts import (
-    PLANNER_SYSTEM,
     ACTOR_SYSTEM,
-    build_planner_message,
+    PLANNER_SYSTEM,
     build_actor_message,
+    build_planner_message,
 )
+from src.llm.response_parser import PlannerResponseParser, ResponseParser
 
 
-class PAOAgent(Agent):
-    """Planner-Actor-Observer 에이전트."""
+class PlannerService:
+    """Planner — 게임 상태를 분석하여 subgoal을 생성한다."""
 
-    def __init__(self, client: AnthropicClient, max_replan: int = 5) -> None:
+    def __init__(
+        self,
+        client: LLMClient,
+        parser: PlannerResponseParser,
+    ) -> None:
         self._client = client
-        self._observer = Observer()
+        self._parser = parser
+
+    def create_plan(
+        self,
+        ext: dict,
+        obs_history: list[str],
+        frame_b64: str | None,
+    ) -> list[dict]:
+        """현재 상태에서 subgoal 리스트를 생성한다."""
+        msg = build_planner_message(ext, obs_history)
+
+        if frame_b64:
+            content: str | list = [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": frame_b64,
+                    },
+                },
+                {"type": "text", "text": msg},
+            ]
+        else:
+            content = msg
+
+        response = self._client.send(
+            system=PLANNER_SYSTEM,
+            messages=[{"role": "user", "content": content}],
+        )
+
+        return self._parser.parse_subgoals(response.content)
+
+
+class ActorService:
+    """Actor — 현재 subgoal 방향으로 단일 액션을 선택한다."""
+
+    def __init__(
+        self,
+        client: LLMClient,
+        parser: ResponseParser,
+    ) -> None:
+        self._client = client
+        self._parser = parser
+
+    def select_action(
+        self,
+        ext: dict,
+        subgoal: dict,
+        obs_history: list[str],
+        frame_b64: str | None,
+    ) -> tuple[int, str]:
+        """subgoal을 향한 단일 액션과 reasoning을 반환한다."""
+        content = build_actor_message(ext, subgoal, obs_history[-5:], frame_b64)
+
+        if isinstance(content, list):
+            messages = [{"role": "user", "content": content}]
+        else:
+            messages = [{"role": "user", "content": content}]
+
+        response = self._client.send(
+            system=ACTOR_SYSTEM,
+            messages=messages,
+        )
+
+        return self._parser.parse(response.content)
+
+
+class PAOAgent:
+    """Planner-Actor-Observer 조율자. Agent Protocol을 구조적으로 만족.
+
+    PlannerService, ActorService, Observer를 조합하여
+    게임 루프를 관리한다. (DIP: 모두 주입받음)
+    """
+
+    def __init__(
+        self,
+        planner: PlannerService,
+        actor: ActorService,
+        observer: Observer,
+        max_replan: int = 5,
+    ) -> None:
+        self._planner = planner
+        self._actor = actor
+        self._observer = observer
         self._max_replan = max_replan
 
         # Planner 상태
@@ -52,7 +139,7 @@ class PAOAgent(Agent):
         obs = self._observer.observe(ext)
         self._obs_history.append(obs.summary)
 
-        # 레벨 변경 감지 → 강제 replan
+        # 레벨 변경 감지 -> 강제 replan
         if obs.slot_cleared and ext["slots_remaining"] == 0:
             self._subgoals = []
             self._current_subgoal_idx = 0
@@ -76,16 +163,17 @@ class PAOAgent(Agent):
                 if self._current_subgoal_idx < len(self._subgoals):
                     next_sg = self._subgoals[self._current_subgoal_idx]
                     self._obs_history.append(
-                        f">> Subgoal {subgoal.get('id','')} done! Next: {next_sg.get('description','')}"
+                        f">> Subgoal {subgoal.get('id', '')} done! "
+                        f"Next: {next_sg.get('description', '')}"
                     )
 
         # Planner 호출 조건
         need_plan = (
-            not self._subgoals  # 첫 번째
-            or self._current_subgoal_idx >= len(self._subgoals)  # 모든 subgoal 완료
-            or self._stuck_count >= 5  # stuck
-            or obs.position_reset  # 리셋 발생
-            or obs.slot_cleared  # 슬롯 클리어 (상황 변화)
+            not self._subgoals
+            or self._current_subgoal_idx >= len(self._subgoals)
+            or self._stuck_count >= 5
+            or obs.position_reset
+            or obs.slot_cleared
         )
 
         if need_plan and self._plan_count < self._max_replan:
@@ -97,71 +185,43 @@ class PAOAgent(Agent):
         else:
             subgoal = {"description": "explore the map", "target": [32, 32]}
 
-        action_id, reasoning = self._act(state, ext, subgoal)
+        frame_b64 = self._get_frame_b64(state)
+        action_id, reasoning = self._actor.select_action(
+            ext, subgoal, self._obs_history, frame_b64
+        )
 
         return AgentResponse(
             action=GameAction.from_id(action_id),
             reasoning=f"[SG{self._current_subgoal_idx}] {reasoning}",
         )
 
-    def _replan(self, ext: dict, state: GameState | None = None) -> None:
+    def _replan(self, ext: dict, state: GameState) -> None:
         """Planner를 호출하여 새 subgoal을 생성한다."""
         self._plan_count += 1
         self._stuck_count = 0
 
-        msg = build_planner_message(ext, self._obs_history)
+        frame_b64 = self._get_frame_b64(state)
+        subgoals = self._planner.create_plan(ext, self._obs_history, frame_b64)
 
-        # 이미지도 함께 전달
-        frame_b64 = None
-        if state and state.frame_raw:
-            raw = state.frame_raw[0]
-            frame = np.array(raw) if not isinstance(raw, np.ndarray) else raw
-            frame_b64 = frame_to_base64(frame, scale=8)
-
-        if frame_b64:
-            content = [
-                {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": frame_b64}},
-                {"type": "text", "text": msg},
-            ]
-        else:
-            content = msg
-
-        response = self._client.send(
-            system=PLANNER_SYSTEM,
-            messages=[{"role": "user", "content": content}],
-        )
-
-        subgoals = self._parse_planner(response.content)
         if subgoals:
             self._subgoals = subgoals
             self._current_subgoal_idx = 0
             descriptions = [sg.get("description", "") for sg in subgoals]
             self._obs_history.append(f">> REPLAN ({self._plan_count}): {descriptions}")
 
-    def _act(self, state: GameState, ext: dict, subgoal: dict) -> tuple[int, str]:
-        """Actor를 호출하여 단일 액션을 선택한다."""
-        # 프레임 이미지
-        frame_b64 = None
-        if state.frame_raw:
-            raw = state.frame_raw[0]
-            frame = np.array(raw) if not isinstance(raw, np.ndarray) else raw
-            frame_b64 = frame_to_base64(frame, scale=8)
+    @staticmethod
+    def _get_frame_b64(state: GameState) -> str | None:
+        """프레임 데이터를 base64 이미지로 변환한다."""
+        if not state.frame_raw:
+            return None
+        raw = state.frame_raw[0]
+        frame = np.array(raw) if not isinstance(raw, np.ndarray) else raw
+        return frame_to_base64(frame, scale=8)
 
-        content = build_actor_message(ext, subgoal, self._obs_history[-5:], frame_b64)
-
-        if isinstance(content, list):
-            messages = [{"role": "user", "content": content}]
-        else:
-            messages = [{"role": "user", "content": content}]
-
-        response = self._client.send(
-            system=ACTOR_SYSTEM,
-            messages=messages,
-        )
-
-        return self._parse_actor(response.content)
-
-    def _check_subgoal_done(self, subgoal: dict, ext: dict, obs: Observation) -> bool:
+    @staticmethod
+    def _check_subgoal_done(
+        subgoal: dict, ext: dict, obs: Observation
+    ) -> bool:
         """subgoal 달성 여부를 체크한다."""
         # 타겟 위치 도달
         target = subgoal.get("target")
@@ -183,55 +243,6 @@ class PAOAgent(Agent):
 
         return False
 
-    def _parse_planner(self, content: str) -> list[dict]:
-        """Planner 응답에서 subgoals를 추출한다."""
-        # "subgoals": [...] 패턴
-        match = re.search(r'"subgoals"\s*:\s*\[', content)
-        if not match:
-            return []
-
-        # JSON 전체 파싱 시도
-        try:
-            # content에서 JSON 부분 추출
-            brace_start = content.find("{")
-            if brace_start < 0:
-                return []
-
-            depth = 0
-            end = brace_start
-            for i in range(brace_start, len(content)):
-                if content[i] == "{":
-                    depth += 1
-                elif content[i] == "}":
-                    depth -= 1
-                    if depth == 0:
-                        end = i + 1
-                        break
-
-            data = json.loads(content[brace_start:end])
-            subgoals = data.get("subgoals", [])
-            # target을 리스트로 보장
-            for sg in subgoals:
-                if "target" not in sg:
-                    sg["target"] = [32, 32]
-                elif isinstance(sg["target"], dict):
-                    sg["target"] = [sg["target"].get("x", 32), sg["target"].get("y", 32)]
-            return subgoals
-        except (json.JSONDecodeError, ValueError):
-            return []
-
-    def _parse_actor(self, content: str) -> tuple[int, str]:
-        """Actor 응답에서 액션과 reasoning을 추출한다."""
-        action_match = re.search(r'"action"\s*:\s*(\d+)', content)
-        action_id = int(action_match.group(1)) if action_match else 1
-        if action_id < 1 or action_id > 4:
-            action_id = 1
-
-        thinking_match = re.search(r'"thinking"\s*:\s*"(.*?)"', content, re.DOTALL)
-        reasoning = thinking_match.group(1)[:300] if thinking_match else content[:200]
-
-        return action_id, reasoning
-
     def on_episode_start(self, game_id: str) -> None:
         self._subgoals = []
         self._current_subgoal_idx = 0
@@ -243,6 +254,3 @@ class PAOAgent(Agent):
 
     def on_episode_end(self, result: str, total_steps: int) -> None:
         pass
-
-    def get_usage(self) -> str:
-        return self._client.get_usage_summary()

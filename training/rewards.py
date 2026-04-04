@@ -2,10 +2,13 @@
 
 코드 기반 즉각 reward (프레임 변화) + Claude Evaluator reward (goal 달성).
 두 신호를 합산하여 동시에 탐색과 목표 지향 학습.
+Observer 기반 세밀한 reward도 제공.
 """
 
 import numpy as np
 import numpy.typing as npt
+
+from src.env.observer import Observation
 
 
 def compute_frame_diff(prev_frame: list, curr_frame: list) -> float:
@@ -57,3 +60,23 @@ def combine_rewards(
         return step_r
 
     return step_r * frame_change_weight + goal_r * goal_reward_weight
+
+
+def observation_reward(obs: Observation) -> float:
+    """Observer 결과에서 세밀한 reward를 계산한다.
+
+    슬롯 클리어, 도구 변경, 이동 성공 등에 보상,
+    차단, 위치 리셋 등에 패널티를 부여한다.
+    """
+    reward = 0.0
+    if obs.slot_cleared:
+        reward += 1.0
+    if obs.tool_changed:
+        reward += 0.3
+    if obs.moved and not obs.position_reset:
+        reward += 0.1
+    if obs.blocked:
+        reward -= 0.2
+    if obs.position_reset:
+        reward -= 0.5
+    return reward

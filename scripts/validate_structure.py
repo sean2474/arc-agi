@@ -12,6 +12,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
+TRAINING_DIR = PROJECT_ROOT / "training"
 STRUCTURE_FILE = PROJECT_ROOT / "docs" / "structure.md"
 
 
@@ -21,8 +22,8 @@ def parse_structure_files(content: str) -> set[str]:
     current_dir = ""
 
     for line in content.splitlines():
-        # ## src/module_name/ 형태
-        dir_match = re.match(r"^##\s+(src/\S+)", line)
+        # ## src/module_name/ 또는 ## training/ 형태
+        dir_match = re.match(r"^##\s+((?:src|training)/\S*)", line)
         if dir_match:
             current_dir = dir_match.group(1).rstrip("/")
             continue
@@ -37,16 +38,16 @@ def parse_structure_files(content: str) -> set[str]:
 
 
 def get_actual_files() -> set[str]:
-    """src/ 내 실제 Python 파일 목록을 가져온다."""
-    if not SRC_DIR.exists():
-        return set()
-
+    """src/ 및 training/ 내 실제 Python 파일 목록을 가져온다."""
     files: set[str] = set()
-    for f in SRC_DIR.rglob("*.py"):
-        if f.name == "__init__.py":
+    for directory in [SRC_DIR, TRAINING_DIR]:
+        if not directory.exists():
             continue
-        relative = str(f.relative_to(PROJECT_ROOT))
-        files.add(relative)
+        for f in directory.rglob("*.py"):
+            if f.name == "__init__.py":
+                continue
+            relative = str(f.relative_to(PROJECT_ROOT))
+            files.add(relative)
     return files
 
 

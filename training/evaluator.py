@@ -2,11 +2,13 @@
 
 학습 시에만 사용. before/after 프레임 + goal을 Claude에게 보여주고
 0~1 점수를 받는다.
+
+LLMClient Protocol을 통해 DIP를 준수한다.
 """
 
 import re
 
-from src.llm.client import AnthropicClient
+from src.llm.client import AnthropicClient, LLMClient
 from src.llm.frame_renderer import frame_to_base64
 
 EVALUATOR_SYSTEM = """You are a reward evaluator for a game-playing AI agent.
@@ -29,10 +31,18 @@ score must be between 0.0 and 1.0:
 
 
 class Evaluator:
-    """Claude 기반 goal 달성 평가자."""
+    """Claude 기반 goal 달성 평가자.
 
-    def __init__(self, model: str = "claude-sonnet-4-20250514") -> None:
-        self._client = AnthropicClient(model=model, max_tokens=256)
+    LLMClient Protocol을 받아 DIP를 준수한다.
+    기본값은 AnthropicClient(claude-opus-4-6).
+    """
+
+    def __init__(
+        self,
+        client: LLMClient | None = None,
+        model: str = "claude-opus-4-6",
+    ) -> None:
+        self._client = client or AnthropicClient(model=model, max_tokens=256)
 
     def evaluate(
         self,
