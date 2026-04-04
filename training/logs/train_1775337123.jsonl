@@ -1,0 +1,2 @@
+{"episode": 0, "game_id": "ls20-cb3b57cc", "goal": "Interact with every unique element visible on screen", "steps": 129, "total_reward": -0.671728515625, "episode_reward": 0.1, "final_state": "GAME_OVER", "levels": 0, "eval_calls": 26}
+{"episode": 1, "game_id": "ls20-cb3b57cc", "goal": "Clear the level by completing all objectives", "steps": 129, "total_reward": -0.48735351562499984, "episode_reward": 0.3, "final_state": "GAME_OVER", "levels": 0, "eval_calls": 26}
