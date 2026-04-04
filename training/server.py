@@ -57,8 +57,9 @@ def create_app():
     async def load_model():
         from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
         import torch
+        import os
 
-        model_name = "Qwen/Qwen2-VL-7B-Instruct"
+        model_name = os.environ.get("MODEL_PATH", "Qwen/Qwen2-VL-7B-Instruct")
         logger.info(f"Loading {model_name}...")
 
         model_state["processor"] = AutoProcessor.from_pretrained(model_name)
@@ -211,9 +212,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--host", type=str, default="0.0.0.0")
+    parser.add_argument("--model", type=str, default="Qwen/Qwen2-VL-7B-Instruct",
+                        help="모델 경로 (로컬 또는 HF hub)")
     args = parser.parse_args()
 
     import uvicorn
+    import os
+    os.environ["MODEL_PATH"] = args.model
 
     app = create_app()
     uvicorn.run(app, host=args.host, port=args.port)
