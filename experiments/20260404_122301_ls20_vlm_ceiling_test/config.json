@@ -1,0 +1,5 @@
+{
+  "name": "ls20_vlm_ceiling_test",
+  "timestamp": "2026-04-04T12:23:01.475793",
+  "description": "Haiku VLM에게 프레임 이미지 + 규칙을 주고 ls20 풀기 테스트"
+}

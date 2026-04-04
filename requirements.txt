@@ -1,7 +1,0 @@
-arc-agi>=0.9.6
-numpy>=2.0
-matplotlib>=3.9
-pyyaml>=6.0
-python-dotenv>=1.0
-flask>=3.0
-openai>=2.0

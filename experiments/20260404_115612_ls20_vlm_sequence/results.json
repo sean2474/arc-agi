@@ -1,0 +1,821 @@
+{
+  "name": "ls20_vlm_ceiling_test",
+  "timestamp": "20260404_115612",
+  "episodes": [
+    {
+      "game_id": "ls20",
+      "final_state": "NOT_FINISHED",
+      "levels_completed": 1,
+      "total_steps": 50,
+      "history": [
+        {
+          "step": 0,
+          "action": "ACTION1",
+          "reasoning": "I need to reach slot at (34,10). My tool is correct except rotation is 270° instead of 0°. I'll move up to find rotation cyclers or directly try reaching the slot. Moving up first.",
+          "player_pos": [
+            39,
+            45
+          ],
+          "new_pos": [
+            39,
+            40
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 1,
+          "action": "ACTION1",
+          "reasoning": "(queued) I need to reach slot at (34,10). My tool is correct except rotation is 270° instead of 0°. I'll move up to find rotation cyclers or directly try reaching the slot. Moving up first.",
+          "player_pos": [
+            39,
+            40
+          ],
+          "new_pos": [
+            39,
+            35
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 2,
+          "action": "ACTION1",
+          "reasoning": "(queued) I need to reach slot at (34,10). My tool is correct except rotation is 270° instead of 0°. I'll move up to find rotation cyclers or directly try reaching the slot. Moving up first.",
+          "player_pos": [
+            39,
+            35
+          ],
+          "new_pos": [
+            39,
+            30
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 3,
+          "action": "ACTION1",
+          "reasoning": "(queued) I need to reach slot at (34,10). My tool is correct except rotation is 270° instead of 0°. I'll move up to find rotation cyclers or directly try reaching the slot. Moving up first.",
+          "player_pos": [
+            39,
+            30
+          ],
+          "new_pos": [
+            39,
+            25
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 4,
+          "action": "ACTION3",
+          "reasoning": "(queued) I need to reach slot at (34,10). My tool is correct except rotation is 270° instead of 0°. I'll move up to find rotation cyclers or directly try reaching the slot. Moving up first.",
+          "player_pos": [
+            39,
+            25
+          ],
+          "new_pos": [
+            34,
+            25
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 5,
+          "action": "ACTION3",
+          "reasoning": "(queued) I need to reach slot at (34,10). My tool is correct except rotation is 270° instead of 0°. I'll move up to find rotation cyclers or directly try reaching the slot. Moving up first.",
+          "player_pos": [
+            34,
+            25
+          ],
+          "new_pos": [
+            29,
+            25
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 6,
+          "action": "ACTION4",
+          "reasoning": "Need to rotate tool from 270° to 0° using the purple rotation pad at (34,24), then navigate to the slot at (34,10). Move right to access the pad, rotate, then move up and position at target.",
+          "player_pos": [
+            29,
+            25
+          ],
+          "new_pos": [
+            34,
+            25
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 7,
+          "action": "ACTION4",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0° using the purple rotation pad at (34,24), then navigate to the slot at (34,10). Move right to access the pad, rotate, then move up and position at target.",
+          "player_pos": [
+            34,
+            25
+          ],
+          "new_pos": [
+            39,
+            25
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 8,
+          "action": "ACTION1",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0° using the purple rotation pad at (34,24), then navigate to the slot at (34,10). Move right to access the pad, rotate, then move up and position at target.",
+          "player_pos": [
+            39,
+            25
+          ],
+          "new_pos": [
+            39,
+            25
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 9,
+          "action": "ACTION1",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0° using the purple rotation pad at (34,24), then navigate to the slot at (34,10). Move right to access the pad, rotate, then move up and position at target.",
+          "player_pos": [
+            39,
+            25
+          ],
+          "new_pos": [
+            39,
+            25
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 10,
+          "action": "ACTION3",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0° using the purple rotation pad at (34,24), then navigate to the slot at (34,10). Move right to access the pad, rotate, then move up and position at target.",
+          "player_pos": [
+            39,
+            25
+          ],
+          "new_pos": [
+            34,
+            25
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 11,
+          "action": "ACTION1",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0° using the purple rotation pad at (34,24), then navigate to the slot at (34,10). Move right to access the pad, rotate, then move up and position at target.",
+          "player_pos": [
+            34,
+            25
+          ],
+          "new_pos": [
+            34,
+            20
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 12,
+          "action": "ACTION1",
+          "reasoning": "Need to rotate tool from 270° to 0°. The purple block at (34,15) is likely a rotation cycler. Move up 2x to reach it, then up 2x more to reach the target slot at (34,10). Both moves are on the same x-",
+          "player_pos": [
+            34,
+            20
+          ],
+          "new_pos": [
+            34,
+            15
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 13,
+          "action": "ACTION1",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. The purple block at (34,15) is likely a rotation cycler. Move up 2x to reach it, then up 2x more to reach the target slot at (34,10). Both moves are on th",
+          "player_pos": [
+            34,
+            15
+          ],
+          "new_pos": [
+            34,
+            15
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 14,
+          "action": "ACTION1",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. The purple block at (34,15) is likely a rotation cycler. Move up 2x to reach it, then up 2x more to reach the target slot at (34,10). Both moves are on th",
+          "player_pos": [
+            34,
+            15
+          ],
+          "new_pos": [
+            34,
+            15
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 15,
+          "action": "ACTION1",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. The purple block at (34,15) is likely a rotation cycler. Move up 2x to reach it, then up 2x more to reach the target slot at (34,10). Both moves are on th",
+          "player_pos": [
+            34,
+            15
+          ],
+          "new_pos": [
+            34,
+            15
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 16,
+          "action": "ACTION3",
+          "reasoning": "Need to rotate tool from 270° to 0°. There's a yellow rotation cycler pad in the lower area. Move left-down to reach it, stand on it to cycle rotation, then return right-up to the target slot at (34,1",
+          "player_pos": [
+            34,
+            15
+          ],
+          "new_pos": [
+            34,
+            15
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 17,
+          "action": "ACTION3",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. There's a yellow rotation cycler pad in the lower area. Move left-down to reach it, stand on it to cycle rotation, then return right-up to the target slot",
+          "player_pos": [
+            34,
+            15
+          ],
+          "new_pos": [
+            34,
+            15
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 18,
+          "action": "ACTION3",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. There's a yellow rotation cycler pad in the lower area. Move left-down to reach it, stand on it to cycle rotation, then return right-up to the target slot",
+          "player_pos": [
+            34,
+            15
+          ],
+          "new_pos": [
+            34,
+            15
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 19,
+          "action": "ACTION2",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. There's a yellow rotation cycler pad in the lower area. Move left-down to reach it, stand on it to cycle rotation, then return right-up to the target slot",
+          "player_pos": [
+            34,
+            15
+          ],
+          "new_pos": [
+            34,
+            20
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 20,
+          "action": "ACTION4",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. There's a yellow rotation cycler pad in the lower area. Move left-down to reach it, stand on it to cycle rotation, then return right-up to the target slot",
+          "player_pos": [
+            34,
+            20
+          ],
+          "new_pos": [
+            34,
+            20
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 21,
+          "action": "ACTION4",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. There's a yellow rotation cycler pad in the lower area. Move left-down to reach it, stand on it to cycle rotation, then return right-up to the target slot",
+          "player_pos": [
+            34,
+            20
+          ],
+          "new_pos": [
+            34,
+            20
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 22,
+          "action": "ACTION4",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. There's a yellow rotation cycler pad in the lower area. Move left-down to reach it, stand on it to cycle rotation, then return right-up to the target slot",
+          "player_pos": [
+            34,
+            20
+          ],
+          "new_pos": [
+            34,
+            20
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 23,
+          "action": "ACTION1",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. There's a yellow rotation cycler pad in the lower area. Move left-down to reach it, stand on it to cycle rotation, then return right-up to the target slot",
+          "player_pos": [
+            34,
+            20
+          ],
+          "new_pos": [
+            34,
+            15
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 24,
+          "action": "ACTION1",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. There's a yellow rotation cycler pad in the lower area. Move left-down to reach it, stand on it to cycle rotation, then return right-up to the target slot",
+          "player_pos": [
+            34,
+            15
+          ],
+          "new_pos": [
+            34,
+            15
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 25,
+          "action": "ACTION2",
+          "reasoning": "Need to rotate tool from 270° to 0° to match slot requirement. Current position (34,15), target slot at (34,10). UP was blocked recently. Try moving down then right to find a rotation cycler pad in th",
+          "player_pos": [
+            34,
+            15
+          ],
+          "new_pos": [
+            34,
+            20
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 26,
+          "action": "ACTION4",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0° to match slot requirement. Current position (34,15), target slot at (34,10). UP was blocked recently. Try moving down then right to find a rotation cycler ",
+          "player_pos": [
+            34,
+            20
+          ],
+          "new_pos": [
+            34,
+            20
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 27,
+          "action": "ACTION4",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0° to match slot requirement. Current position (34,15), target slot at (34,10). UP was blocked recently. Try moving down then right to find a rotation cycler ",
+          "player_pos": [
+            34,
+            20
+          ],
+          "new_pos": [
+            34,
+            20
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 28,
+          "action": "ACTION1",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0° to match slot requirement. Current position (34,15), target slot at (34,10). UP was blocked recently. Try moving down then right to find a rotation cycler ",
+          "player_pos": [
+            34,
+            20
+          ],
+          "new_pos": [
+            34,
+            15
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 29,
+          "action": "ACTION1",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0° to match slot requirement. Current position (34,15), target slot at (34,10). UP was blocked recently. Try moving down then right to find a rotation cycler ",
+          "player_pos": [
+            34,
+            15
+          ],
+          "new_pos": [
+            34,
+            15
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 30,
+          "action": "ACTION1",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0° to match slot requirement. Current position (34,15), target slot at (34,10). UP was blocked recently. Try moving down then right to find a rotation cycler ",
+          "player_pos": [
+            34,
+            15
+          ],
+          "new_pos": [
+            34,
+            15
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 31,
+          "action": "ACTION2",
+          "reasoning": "Need to rotate tool from 270° to 0°. Slot at (34,10) is directly above. Must find rotation cycler pad in the yellow zone. Move down first since up is blocked, then left into yellow area to find cycler",
+          "player_pos": [
+            34,
+            15
+          ],
+          "new_pos": [
+            34,
+            20
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 32,
+          "action": "ACTION2",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. Slot at (34,10) is directly above. Must find rotation cycler pad in the yellow zone. Move down first since up is blocked, then left into yellow area to fi",
+          "player_pos": [
+            34,
+            20
+          ],
+          "new_pos": [
+            34,
+            25
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 33,
+          "action": "ACTION3",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. Slot at (34,10) is directly above. Must find rotation cycler pad in the yellow zone. Move down first since up is blocked, then left into yellow area to fi",
+          "player_pos": [
+            34,
+            25
+          ],
+          "new_pos": [
+            29,
+            25
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 34,
+          "action": "ACTION3",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. Slot at (34,10) is directly above. Must find rotation cycler pad in the yellow zone. Move down first since up is blocked, then left into yellow area to fi",
+          "player_pos": [
+            29,
+            25
+          ],
+          "new_pos": [
+            24,
+            25
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 35,
+          "action": "ACTION3",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. Slot at (34,10) is directly above. Must find rotation cycler pad in the yellow zone. Move down first since up is blocked, then left into yellow area to fi",
+          "player_pos": [
+            24,
+            25
+          ],
+          "new_pos": [
+            19,
+            25
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 36,
+          "action": "ACTION2",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. Slot at (34,10) is directly above. Must find rotation cycler pad in the yellow zone. Move down first since up is blocked, then left into yellow area to fi",
+          "player_pos": [
+            19,
+            25
+          ],
+          "new_pos": [
+            19,
+            30
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 37,
+          "action": "ACTION1",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. Slot at (34,10) is directly above. Must find rotation cycler pad in the yellow zone. Move down first since up is blocked, then left into yellow area to fi",
+          "player_pos": [
+            19,
+            30
+          ],
+          "new_pos": [
+            19,
+            25
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 38,
+          "action": "ACTION4",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. Slot at (34,10) is directly above. Must find rotation cycler pad in the yellow zone. Move down first since up is blocked, then left into yellow area to fi",
+          "player_pos": [
+            19,
+            25
+          ],
+          "new_pos": [
+            24,
+            25
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 39,
+          "action": "ACTION4",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. Slot at (34,10) is directly above. Must find rotation cycler pad in the yellow zone. Move down first since up is blocked, then left into yellow area to fi",
+          "player_pos": [
+            24,
+            25
+          ],
+          "new_pos": [
+            29,
+            25
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 40,
+          "action": "ACTION1",
+          "reasoning": "(queued) Need to rotate tool from 270° to 0°. Slot at (34,10) is directly above. Must find rotation cycler pad in the yellow zone. Move down first since up is blocked, then left into yellow area to fi",
+          "player_pos": [
+            29,
+            25
+          ],
+          "new_pos": [
+            29,
+            25
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 41,
+          "action": "ACTION1",
+          "reasoning": "Tool already matches the slot at (34,10). Need to navigate from (29,25) to (34,10). Recent up moves were blocked, so try moving up in the corridor and find path around obstacles.",
+          "player_pos": [
+            29,
+            25
+          ],
+          "new_pos": [
+            29,
+            25
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 42,
+          "action": "ACTION1",
+          "reasoning": "(queued) Tool already matches the slot at (34,10). Need to navigate from (29,25) to (34,10). Recent up moves were blocked, so try moving up in the corridor and find path around obstacles.",
+          "player_pos": [
+            29,
+            25
+          ],
+          "new_pos": [
+            29,
+            25
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 43,
+          "action": "ACTION1",
+          "reasoning": "(queued) Tool already matches the slot at (34,10). Need to navigate from (29,25) to (34,10). Recent up moves were blocked, so try moving up in the corridor and find path around obstacles.",
+          "player_pos": [
+            29,
+            25
+          ],
+          "new_pos": [
+            29,
+            25
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 44,
+          "action": "ACTION4",
+          "reasoning": "(queued) Tool already matches the slot at (34,10). Need to navigate from (29,25) to (34,10). Recent up moves were blocked, so try moving up in the corridor and find path around obstacles.",
+          "player_pos": [
+            29,
+            25
+          ],
+          "new_pos": [
+            34,
+            25
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 45,
+          "action": "ACTION1",
+          "reasoning": "(queued) Tool already matches the slot at (34,10). Need to navigate from (29,25) to (34,10). Recent up moves were blocked, so try moving up in the corridor and find path around obstacles.",
+          "player_pos": [
+            34,
+            25
+          ],
+          "new_pos": [
+            34,
+            20
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 46,
+          "action": "ACTION1",
+          "reasoning": "{\"thinking\": \"Let me analyze the current situation:\\n\\n1. My current position: (34, 20)\\n2. My tool: shape=5, color=9(orange), rotation=0°\\n3. Target slot at (34, 10): needs shape=5, color=9(orange), ",
+          "player_pos": [
+            34,
+            20
+          ],
+          "new_pos": [
+            34,
+            15
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 47,
+          "action": "ACTION1",
+          "reasoning": "Let me analyze the situation:\\n\\n1. My current position: (34, 15)\\n2. My tool: shape=5, color=9(orange), rotation=0°\\n3. Target slot: (34, 10) with requirements shape=5, color=9(orange), rotation=0° -",
+          "player_pos": [
+            34,
+            15
+          ],
+          "new_pos": [
+            29,
+            40
+          ],
+          "moved": true,
+          "event": "",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 48,
+          "action": "ACTION3",
+          "reasoning": "Need to rotate tool from 0° to 270°. First, move left towards the slot at (14,40). Then access a rotation pad to change rotation. The pad at top appears to be a rotation cycler. Move left multiple tim",
+          "player_pos": [
+            29,
+            40
+          ],
+          "new_pos": [
+            29,
+            40
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        },
+        {
+          "step": 49,
+          "action": "ACTION3",
+          "reasoning": "(queued) Need to rotate tool from 0° to 270°. First, move left towards the slot at (14,40). Then access a rotation pad to change rotation. The pad at top appears to be a rotation cycler. Move left mul",
+          "player_pos": [
+            29,
+            40
+          ],
+          "new_pos": [
+            29,
+            40
+          ],
+          "moved": false,
+          "event": "BLOCKED",
+          "state_after": "NOT_FINISHED"
+        }
+      ],
+      "api_usage": "Calls: 10, Input: 8197 tokens, Output: 4294 tokens, Est. cost: $0.0237"
+    }
+  ],
+  "summary": {
+    "total_episodes": 1,
+    "wins": 0,
+    "win_rate": 0.0,
+    "avg_steps": 50.0
+  }
+}

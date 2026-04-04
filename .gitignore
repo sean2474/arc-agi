@@ -7,5 +7,13 @@ results/
 .DS_Store
 qwen3-8b/
 qwen2.5-vl-7b/
-environment_files/
 data/
+experiments/*/replay/
+.claude/settings.local.json
+recordings/
+environment_files/
+community_games/
+tests_official/
+_fake_api.py
+.env.offline
+logs.log
