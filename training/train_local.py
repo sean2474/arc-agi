@@ -11,8 +11,12 @@ Usage (GPU 서버에서):
 import argparse
 import json
 import random
+import sys
 import time
 from pathlib import Path
+
+# 프로젝트 루트를 sys.path에 추가 (GPU 서버에서 src/ 패키지 인식용)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 import torch
