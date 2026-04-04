@@ -55,17 +55,17 @@ def create_app():
 
     @app.on_event("startup")
     async def load_model():
-        from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+        from transformers import AutoModelForImageTextToText, AutoProcessor
         import torch
         import os
 
-        model_name = os.environ.get("MODEL_PATH", "Qwen/Qwen2-VL-7B-Instruct")
+        model_name = os.environ.get("MODEL_PATH", "Qwen/Qwen2.5-VL-7B-Instruct")
         logger.info(f"Loading {model_name}...")
 
         model_state["processor"] = AutoProcessor.from_pretrained(model_name)
-        model_state["model"] = Qwen2VLForConditionalGeneration.from_pretrained(
+        model_state["model"] = AutoModelForImageTextToText.from_pretrained(
             model_name,
-            torch_dtype=torch.bfloat16,
+            dtype=torch.bfloat16,
             device_map="auto",
         )
         logger.info("Model loaded.")
